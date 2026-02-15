@@ -1,0 +1,3 @@
+export * from './error-response.interface';
+export * from './paginated-result.interface';
+export * from './success-response.interface';
