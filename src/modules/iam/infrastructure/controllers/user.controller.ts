@@ -11,6 +11,10 @@ import type { UpdateUserUseCasePort } from '../../application/ports/update-user.
 import { UPDATE_USER_USE_CASE } from '../../application/ports/update-user.use-case';
 import type { DeleteUserUseCasePort } from '../../application/ports/delete-user.use-case';
 import { DELETE_USER_USE_CASE } from '../../application/ports/delete-user.use-case';
+import type { ListApiKeysUseCasePort } from '../../application/ports/list-api-keys.use-case';
+import { LIST_API_KEYS_USE_CASE } from '../../application/ports/list-api-keys.use-case';
+import type { RevokeApiKeyUseCasePort } from '../../application/ports/revoke-api-key.use-case';
+import { REVOKE_API_KEY_USE_CASE } from '../../application/ports/revoke-api-key.use-case';
 import { PaginationQueryDto } from '../../../../shared/application/dtos';
 import type { JwtPayload } from '../strategies/jwt.strategy';
 
@@ -27,6 +31,10 @@ export class UserController {
     private readonly updateUserUseCase: UpdateUserUseCasePort,
     @Inject(DELETE_USER_USE_CASE)
     private readonly deleteUserUseCase: DeleteUserUseCasePort,
+    @Inject(LIST_API_KEYS_USE_CASE)
+    private readonly listApiKeysUseCase: ListApiKeysUseCasePort,
+    @Inject(REVOKE_API_KEY_USE_CASE)
+    private readonly revokeApiKeyUseCase: RevokeApiKeyUseCasePort,
   ) {}
 
   @Get('me')
@@ -62,5 +70,23 @@ export class UserController {
   async deleteUser(@Param('id', ParseUUIDPipe) id: string) {
     await this.deleteUserUseCase.execute(id);
     return { message: 'User deleted successfully' };
+  }
+
+  @Get(':userId/api-keys')
+  @Roles('admin')
+  @ApiOperation({ summary: "List a user's API keys (admin only)" })
+  async getUserApiKeys(@Param('userId', ParseUUIDPipe) userId: string) {
+    return this.listApiKeysUseCase.execute(userId);
+  }
+
+  @Delete(':userId/api-keys/:apiKeyId')
+  @Roles('admin')
+  @ApiOperation({ summary: "Revoke a user's API key (admin only)" })
+  async revokeUserApiKey(
+    @Param('userId', ParseUUIDPipe) userId: string,
+    @Param('apiKeyId', ParseUUIDPipe) apiKeyId: string,
+  ) {
+    await this.revokeApiKeyUseCase.execute(apiKeyId, userId, true);
+    return { message: 'API key revoked successfully' };
   }
 }

@@ -4,6 +4,8 @@ import { GET_PROFILE_USE_CASE } from '../../application/ports/get-profile.use-ca
 import { GET_USERS_USE_CASE } from '../../application/ports/get-users.use-case';
 import { UPDATE_USER_USE_CASE } from '../../application/ports/update-user.use-case';
 import { DELETE_USER_USE_CASE } from '../../application/ports/delete-user.use-case';
+import { LIST_API_KEYS_USE_CASE } from '../../application/ports/list-api-keys.use-case';
+import { REVOKE_API_KEY_USE_CASE } from '../../application/ports/revoke-api-key.use-case';
 
 describe('UserController', () => {
   let controller: UserController;
@@ -11,12 +13,16 @@ describe('UserController', () => {
   let getUsersUseCase: { execute: jest.Mock };
   let updateUserUseCase: { execute: jest.Mock };
   let deleteUserUseCase: { execute: jest.Mock };
+  let listApiKeysUseCase: { execute: jest.Mock };
+  let revokeApiKeyUseCase: { execute: jest.Mock };
 
   beforeEach(async () => {
     getProfileUseCase = { execute: jest.fn() };
     getUsersUseCase = { execute: jest.fn() };
     updateUserUseCase = { execute: jest.fn() };
     deleteUserUseCase = { execute: jest.fn() };
+    listApiKeysUseCase = { execute: jest.fn() };
+    revokeApiKeyUseCase = { execute: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UserController],
@@ -25,6 +31,8 @@ describe('UserController', () => {
         { provide: GET_USERS_USE_CASE, useValue: getUsersUseCase },
         { provide: UPDATE_USER_USE_CASE, useValue: updateUserUseCase },
         { provide: DELETE_USER_USE_CASE, useValue: deleteUserUseCase },
+        { provide: LIST_API_KEYS_USE_CASE, useValue: listApiKeysUseCase },
+        { provide: REVOKE_API_KEY_USE_CASE, useValue: revokeApiKeyUseCase },
       ],
     }).compile();
 

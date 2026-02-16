@@ -62,11 +62,11 @@ import { RolesGuard } from './modules/iam/infrastructure/guards/roles.guard';
     AppService,
     {
       provide: APP_GUARD,
-      useClass: JwtAuthGuard,
+      useExisting: JwtAuthGuard,
     },
     {
       provide: APP_GUARD,
-      useClass: RolesGuard,
+      useExisting: RolesGuard,
     },
     {
       provide: APP_INTERCEPTOR,

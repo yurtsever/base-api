@@ -7,6 +7,8 @@ export interface JwtPayload {
   sub: string;
   email: string;
   roles: string[];
+  scopes?: string[];
+  isApiKey?: boolean;
 }
 
 @Injectable()
