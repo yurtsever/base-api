@@ -4,6 +4,9 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+// Email Module
+import { EmailModule } from '../email/email.module';
+
 // Domain Services
 import { AuthDomainService } from './domain/services/auth-domain.service';
 import { UserDomainService } from './domain/services/user-domain.service';
@@ -14,6 +17,7 @@ import { REFRESH_TOKEN_REPOSITORY_PORT } from './domain/ports/refresh-token-repo
 import { PASSWORD_HASHER_PORT } from './domain/ports/password-hasher.port';
 import { TOKEN_GENERATOR_PORT } from './domain/ports/token-generator.port';
 import { ROLE_REPOSITORY_PORT } from './domain/ports/role-repository.port';
+import { OTP_REPOSITORY_PORT } from './domain/ports/otp-repository.port';
 
 // Application Use Case Ports
 import { REGISTER_USE_CASE } from './application/ports/register.use-case';
@@ -24,6 +28,8 @@ import { GET_PROFILE_USE_CASE } from './application/ports/get-profile.use-case';
 import { GET_USERS_USE_CASE } from './application/ports/get-users.use-case';
 import { UPDATE_USER_USE_CASE } from './application/ports/update-user.use-case';
 import { DELETE_USER_USE_CASE } from './application/ports/delete-user.use-case';
+import { REQUEST_OTP_USE_CASE } from './application/ports/request-otp.use-case';
+import { VERIFY_OTP_USE_CASE } from './application/ports/verify-otp.use-case';
 
 // Application Use Cases
 import { RegisterUseCase } from './application/use-cases/register.use-case';
@@ -34,15 +40,19 @@ import { GetProfileUseCase } from './application/use-cases/get-profile.use-case'
 import { GetUsersUseCase } from './application/use-cases/get-users.use-case';
 import { UpdateUserUseCase } from './application/use-cases/update-user.use-case';
 import { DeleteUserUseCase } from './application/use-cases/delete-user.use-case';
+import { RequestOtpUseCase } from './application/use-cases/request-otp.use-case';
+import { VerifyOtpUseCase } from './application/use-cases/verify-otp.use-case';
 
 // Infrastructure - Persistence
 import { UserEntity } from './infrastructure/persistence/entities/user.entity';
 import { RoleEntity } from './infrastructure/persistence/entities/role.entity';
 import { PermissionEntity } from './infrastructure/persistence/entities/permission.entity';
 import { RefreshTokenEntity } from './infrastructure/persistence/entities/refresh-token.entity';
+import { OtpEntity } from './infrastructure/persistence/entities/otp.entity';
 import { TypeOrmUserRepositoryAdapter } from './infrastructure/persistence/repositories/typeorm-user-repository.adapter';
 import { TypeOrmRefreshTokenRepositoryAdapter } from './infrastructure/persistence/repositories/typeorm-refresh-token-repository.adapter';
 import { TypeOrmRoleRepositoryAdapter } from './infrastructure/persistence/repositories/typeorm-role-repository.adapter';
+import { TypeOrmOtpRepositoryAdapter } from './infrastructure/persistence/repositories/typeorm-otp-repository.adapter';
 
 // Infrastructure - Adapters
 import { BcryptPasswordHasherAdapter } from './infrastructure/adapters/bcrypt-password-hasher.adapter';
@@ -56,6 +66,7 @@ import { PermissionsGuard } from './infrastructure/guards/permissions.guard';
 
 // Infrastructure - Tasks
 import { ExpiredTokenCleanupTask } from './infrastructure/tasks/expired-token-cleanup.task';
+import { ExpiredOtpCleanupTask } from './infrastructure/tasks/expired-otp-cleanup.task';
 
 // Controllers
 import { AuthController } from './infrastructure/controllers/auth.controller';
@@ -63,7 +74,7 @@ import { UserController } from './infrastructure/controllers/user.controller';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([UserEntity, RoleEntity, PermissionEntity, RefreshTokenEntity]),
+    TypeOrmModule.forFeature([UserEntity, RoleEntity, PermissionEntity, RefreshTokenEntity, OtpEntity]),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       inject: [ConfigService],
@@ -74,6 +85,7 @@ import { UserController } from './infrastructure/controllers/user.controller';
         },
       }),
     }),
+    EmailModule,
   ],
   controllers: [AuthController, UserController],
   providers: [
@@ -102,6 +114,10 @@ import { UserController } from './infrastructure/controllers/user.controller';
       provide: ROLE_REPOSITORY_PORT,
       useClass: TypeOrmRoleRepositoryAdapter,
     },
+    {
+      provide: OTP_REPOSITORY_PORT,
+      useClass: TypeOrmOtpRepositoryAdapter,
+    },
 
     // Use Cases (Input Ports)
     { provide: REGISTER_USE_CASE, useClass: RegisterUseCase },
@@ -112,9 +128,12 @@ import { UserController } from './infrastructure/controllers/user.controller';
     { provide: GET_USERS_USE_CASE, useClass: GetUsersUseCase },
     { provide: UPDATE_USER_USE_CASE, useClass: UpdateUserUseCase },
     { provide: DELETE_USER_USE_CASE, useClass: DeleteUserUseCase },
+    { provide: REQUEST_OTP_USE_CASE, useClass: RequestOtpUseCase },
+    { provide: VERIFY_OTP_USE_CASE, useClass: VerifyOtpUseCase },
 
     // Tasks
     ExpiredTokenCleanupTask,
+    ExpiredOtpCleanupTask,
 
     // Strategy & Guards
     JwtStrategy,

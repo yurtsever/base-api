@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { randomUUID } from 'crypto';
+import { randomInt, randomUUID, timingSafeEqual } from 'crypto';
 import type { UserRepositoryPort } from '../ports/user-repository.port';
 import { USER_REPOSITORY_PORT } from '../ports/user-repository.port';
 import type { RefreshTokenRepositoryPort } from '../ports/refresh-token-repository.port';
@@ -10,13 +10,17 @@ import type { TokenGeneratorPort, TokenPair } from '../ports/token-generator.por
 import { TOKEN_GENERATOR_PORT } from '../ports/token-generator.port';
 import type { RoleRepositoryPort } from '../ports/role-repository.port';
 import { ROLE_REPOSITORY_PORT } from '../ports/role-repository.port';
+import type { OtpRepositoryPort } from '../ports/otp-repository.port';
+import { OTP_REPOSITORY_PORT } from '../ports/otp-repository.port';
 import { User } from '../models/user.model';
+import { Otp } from '../models/otp.model';
 import { RefreshToken } from '../models/refresh-token.model';
 import { Email } from '../value-objects/email.value-object';
 import { Password } from '../value-objects/password.value-object';
 import { InvalidCredentialsException } from '../exceptions/invalid-credentials.exception';
 import { UserAlreadyExistsException } from '../exceptions/user-already-exists.exception';
 import { TokenExpiredException } from '../exceptions/token-expired.exception';
+import { InvalidOtpException } from '../exceptions/invalid-otp.exception';
 
 @Injectable()
 export class AuthDomainService {
@@ -31,6 +35,8 @@ export class AuthDomainService {
     private readonly tokenGenerator: TokenGeneratorPort,
     @Inject(ROLE_REPOSITORY_PORT)
     private readonly roleRepository: RoleRepositoryPort,
+    @Inject(OTP_REPOSITORY_PORT)
+    private readonly otpRepository: OtpRepositoryPort,
   ) {}
 
   async register(email: string, password: string, firstName: string, lastName: string): Promise<User> {
@@ -67,7 +73,11 @@ export class AuthDomainService {
       throw new InvalidCredentialsException('Account is deactivated');
     }
 
-    const isPasswordValid = await this.passwordHasher.compare(password, user.password.value);
+    if (!user.hasPassword()) {
+      throw new InvalidCredentialsException('Password login not available for this account');
+    }
+
+    const isPasswordValid = await this.passwordHasher.compare(password, user.password!.value);
     if (!isPasswordValid) {
       throw new InvalidCredentialsException();
     }
@@ -127,5 +137,100 @@ export class AuthDomainService {
     await this.refreshTokenRepository.rotateToken(refreshTokenValue, newRefreshToken);
 
     return { user, tokens };
+  }
+
+  async requestOtp(email: string, expirationSeconds: number, resendIntervalSeconds: number): Promise<string> {
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Check resend interval — reject if last OTP was sent too recently
+    const latestOtp = await this.otpRepository.findLatestByEmail(normalizedEmail);
+    if (latestOtp && latestOtp.createdAt) {
+      const elapsed = (Date.now() - latestOtp.createdAt.getTime()) / 1000;
+      if (elapsed < resendIntervalSeconds) {
+        throw new InvalidOtpException('Please wait before requesting a new code');
+      }
+    }
+
+    // Invalidate previous OTPs
+    await this.otpRepository.invalidateAllByEmail(normalizedEmail);
+
+    // Generate 6-digit code
+    const code = String(randomInt(100000, 999999));
+
+    const otp = new Otp(randomUUID(), code, normalizedEmail, new Date(Date.now() + expirationSeconds * 1000), false, 0);
+
+    await this.otpRepository.save(otp);
+
+    return code;
+  }
+
+  async verifyOtpAndLogin(
+    email: string,
+    code: string,
+    maxAttempts: number,
+    refreshExpirationSeconds: number,
+  ): Promise<{ user: User; tokens: TokenPair; isNewUser: boolean }> {
+    const normalizedEmail = email.toLowerCase().trim();
+
+    const otp = await this.otpRepository.findLatestByEmail(normalizedEmail);
+    if (!otp) {
+      throw new InvalidOtpException();
+    }
+
+    if (!otp.isValid()) {
+      throw new InvalidOtpException('OTP has expired or already been used');
+    }
+
+    if (otp.hasExceededMaxAttempts(maxAttempts)) {
+      throw new InvalidOtpException('Maximum verification attempts exceeded');
+    }
+
+    // Timing-safe comparison
+    const codeBuffer = Buffer.from(code.padEnd(6, '\0'));
+    const otpBuffer = Buffer.from(otp.code.padEnd(6, '\0'));
+    if (!timingSafeEqual(codeBuffer, otpBuffer)) {
+      otp.incrementAttempts();
+      await this.otpRepository.save(otp);
+      throw new InvalidOtpException('Invalid code');
+    }
+
+    // Mark OTP as used
+    otp.use();
+    await this.otpRepository.save(otp);
+
+    // Find or create user
+    let isNewUser = false;
+    let user = await this.userRepository.findByEmail(normalizedEmail);
+    if (!user) {
+      isNewUser = true;
+      const emailVO = Email.create(normalizedEmail);
+      const defaultRole = await this.roleRepository.findDefault();
+      const roles = defaultRole ? [defaultRole] : [];
+      user = new User(randomUUID(), emailVO, null, '', '', true, roles);
+      user = await this.userRepository.save(user);
+    }
+
+    if (!user.isActive) {
+      throw new InvalidCredentialsException('Account is deactivated');
+    }
+
+    // Generate tokens
+    const tokens = await this.tokenGenerator.generateTokenPair({
+      sub: user.id,
+      email: user.email.value,
+      roles: user.roles.map((r) => r.name),
+    });
+
+    const refreshToken = new RefreshToken(
+      randomUUID(),
+      tokens.refreshToken,
+      user.id,
+      new Date(Date.now() + refreshExpirationSeconds * 1000),
+      false,
+    );
+
+    await this.refreshTokenRepository.save(refreshToken);
+
+    return { user, tokens, isNewUser };
   }
 }

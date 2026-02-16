@@ -28,11 +28,13 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: ${NODE_ENV:-development}
-      PORT: ${PORT:-3000}
+      PORT: 3000
       DATABASE_URL: postgresql://${DATABASE_USERNAME:-postgres}:${DATABASE_PASSWORD:-postgres}@postgres:5432/${DATABASE_NAME:-base_api}
       DATABASE_HOST: postgres
       DATABASE_PORT: 5432
       LOG_LEVEL: ${LOG_LEVEL:-debug}
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
     ports:
       - '${PORT:-3000}:3000'
     volumes:
@@ -45,6 +47,16 @@ services:
     networks:
       - app-network
     command: pnpm run start:dev
+
+  # MailPit (Local SMTP server with Web UI)
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - '1025:1025'   # SMTP
+      - '8025:8025'   # Web UI
+    networks:
+      - app-network
 
   # pgAdmin (Optional - Database Management UI)
   pgadmin:

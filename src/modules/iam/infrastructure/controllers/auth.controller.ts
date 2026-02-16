@@ -6,6 +6,8 @@ import { Public } from '../decorators/public.decorator';
 import { RegisterDto } from '../../application/dtos/register.dto';
 import { LoginDto } from '../../application/dtos/login.dto';
 import { RefreshTokenDto } from '../../application/dtos/refresh-token.dto';
+import { RequestOtpDto } from '../../application/dtos/request-otp.dto';
+import { VerifyOtpDto } from '../../application/dtos/verify-otp.dto';
 import type { AuthCookieResponse } from '../../application/dtos/auth-response.interface';
 import type { RegisterUseCasePort } from '../../application/ports/register.use-case';
 import { REGISTER_USE_CASE } from '../../application/ports/register.use-case';
@@ -15,6 +17,10 @@ import type { LogoutUseCasePort } from '../../application/ports/logout.use-case'
 import { LOGOUT_USE_CASE } from '../../application/ports/logout.use-case';
 import type { RefreshTokenUseCasePort } from '../../application/ports/refresh-token.use-case';
 import { REFRESH_TOKEN_USE_CASE } from '../../application/ports/refresh-token.use-case';
+import type { RequestOtpUseCasePort } from '../../application/ports/request-otp.use-case';
+import { REQUEST_OTP_USE_CASE } from '../../application/ports/request-otp.use-case';
+import type { VerifyOtpUseCasePort } from '../../application/ports/verify-otp.use-case';
+import { VERIFY_OTP_USE_CASE } from '../../application/ports/verify-otp.use-case';
 import { setRefreshTokenCookie, clearRefreshTokenCookie } from '../utils/cookie.util';
 
 @ApiTags('auth')
@@ -29,6 +35,10 @@ export class AuthController {
     private readonly logoutUseCase: LogoutUseCasePort,
     @Inject(REFRESH_TOKEN_USE_CASE)
     private readonly refreshTokenUseCase: RefreshTokenUseCasePort,
+    @Inject(REQUEST_OTP_USE_CASE)
+    private readonly requestOtpUseCase: RequestOtpUseCasePort,
+    @Inject(VERIFY_OTP_USE_CASE)
+    private readonly verifyOtpUseCase: VerifyOtpUseCasePort,
     private readonly configService: ConfigService,
   ) {}
 
@@ -99,6 +109,34 @@ export class AuthController {
     const cookies = req.cookies as Record<string, string> | undefined;
     const refreshToken: string | undefined = cookies?.refresh_token || dto.refreshToken;
     const result = await this.refreshTokenUseCase.execute({ refreshToken });
+
+    setRefreshTokenCookie(res, this.configService, {
+      refreshToken: result.refreshToken,
+      refreshExpiresIn: this.configService.get<number>('auth.jwt.refreshExpiration', 604800),
+    });
+
+    return {
+      user: result.user,
+      accessToken: result.accessToken,
+      expiresIn: result.expiresIn,
+      tokenType: result.tokenType,
+    };
+  }
+
+  @Post('otp/request')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Request a one-time password via email' })
+  async requestOtp(@Body() dto: RequestOtpDto): Promise<{ message: string }> {
+    return this.requestOtpUseCase.execute(dto);
+  }
+
+  @Post('otp/verify')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Verify OTP and authenticate' })
+  async verifyOtp(@Body() dto: VerifyOtpDto, @Res({ passthrough: true }) res: Response): Promise<AuthCookieResponse> {
+    const result = await this.verifyOtpUseCase.execute(dto);
 
     setRefreshTokenCookie(res, this.configService, {
       refreshToken: result.refreshToken,

@@ -7,7 +7,7 @@ export class User extends AggregateRoot<string> {
   constructor(
     id: string,
     private readonly _email: Email,
-    private _password: Password,
+    private _password: Password | null,
     private _firstName: string,
     private _lastName: string,
     private _isActive: boolean,
@@ -22,8 +22,12 @@ export class User extends AggregateRoot<string> {
     return this._email;
   }
 
-  get password(): Password {
+  get password(): Password | null {
     return this._password;
+  }
+
+  hasPassword(): boolean {
+    return this._password !== null;
   }
 
   get firstName(): string {

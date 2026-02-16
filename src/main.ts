@@ -20,6 +20,7 @@ async function bootstrap() {
   const nodeEnv = configService.get<string>('app.nodeEnv', 'development');
   const port = configService.get<number>('app.port', 3000);
   const apiPrefix = configService.get<string>('app.apiPrefix', 'api');
+
   const corsOrigins = configService.get<string[]>('security.corsOrigins', ['http://localhost:3000']);
 
   // Logger - Use PinoLogger for filters

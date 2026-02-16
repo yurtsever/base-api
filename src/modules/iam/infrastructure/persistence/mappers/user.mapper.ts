@@ -7,7 +7,7 @@ import { RoleMapper } from './role.mapper';
 export class UserMapper {
   static toDomain(entity: UserEntity): User {
     const email = Email.create(entity.email);
-    const password = Password.createFromHash(entity.password);
+    const password = entity.password ? Password.createFromHash(entity.password) : null;
     const roles = (entity.roles || []).map((r) => RoleMapper.toDomain(r));
 
     return new User(
@@ -27,7 +27,7 @@ export class UserMapper {
     const entity = new UserEntity();
     entity.id = domain.id;
     entity.email = domain.email.value;
-    entity.password = domain.password.value;
+    entity.password = domain.password ? domain.password.value : null;
     entity.firstName = domain.firstName;
     entity.lastName = domain.lastName;
     entity.isActive = domain.isActive;

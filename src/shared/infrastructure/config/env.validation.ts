@@ -152,6 +152,22 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   SMTP_DEFAULT_FROM: string = 'noreply@localhost';
+
+  @IsNumber()
+  @Min(60)
+  @IsOptional()
+  OTP_EXPIRATION: number = 300;
+
+  @IsNumber()
+  @Min(1)
+  @Max(10)
+  @IsOptional()
+  OTP_MAX_ATTEMPTS: number = 5;
+
+  @IsNumber()
+  @Min(10)
+  @IsOptional()
+  OTP_RESEND_INTERVAL: number = 60;
 }
 
 export function validate(config: Record<string, unknown>) {

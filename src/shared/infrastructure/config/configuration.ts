@@ -57,6 +57,12 @@ export interface EmailConfig {
   defaultFrom: string;
 }
 
+export interface OtpConfig {
+  expiration: number;
+  maxAttempts: number;
+  resendInterval: number;
+}
+
 export interface Configuration {
   app: AppConfig;
   database: DatabaseConfig;
@@ -66,6 +72,7 @@ export interface Configuration {
   cookie: CookieConfig;
   audit: AuditConfig;
   email: EmailConfig;
+  otp: OtpConfig;
 }
 
 export default (): Configuration => ({
@@ -119,5 +126,10 @@ export default (): Configuration => ({
     user: process.env.SMTP_USER || '',
     password: process.env.SMTP_PASSWORD || '',
     defaultFrom: process.env.SMTP_DEFAULT_FROM || 'noreply@localhost',
+  },
+  otp: {
+    expiration: parseInt(process.env.OTP_EXPIRATION || '300', 10),
+    maxAttempts: parseInt(process.env.OTP_MAX_ATTEMPTS || '5', 10),
+    resendInterval: parseInt(process.env.OTP_RESEND_INTERVAL || '60', 10),
   },
 });
