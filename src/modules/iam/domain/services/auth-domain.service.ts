@@ -12,15 +12,22 @@ import type { RoleRepositoryPort } from '../ports/role-repository.port';
 import { ROLE_REPOSITORY_PORT } from '../ports/role-repository.port';
 import type { OtpRepositoryPort } from '../ports/otp-repository.port';
 import { OTP_REPOSITORY_PORT } from '../ports/otp-repository.port';
+import type { OAuthAccountRepositoryPort } from '../ports/oauth-account-repository.port';
+import { OAUTH_ACCOUNT_REPOSITORY_PORT } from '../ports/oauth-account-repository.port';
+import type { OAuthProviderPort } from '../ports/oauth-provider.port';
+import { OAUTH_PROVIDER_PORT } from '../ports/oauth-provider.port';
 import { User } from '../models/user.model';
 import { Otp } from '../models/otp.model';
+import { OAuthAccount } from '../models/oauth-account.model';
 import { RefreshToken } from '../models/refresh-token.model';
 import { Email } from '../value-objects/email.value-object';
 import { Password } from '../value-objects/password.value-object';
+import { OAuthProvider } from '../value-objects/oauth-provider.value-object';
 import { InvalidCredentialsException } from '../exceptions/invalid-credentials.exception';
 import { UserAlreadyExistsException } from '../exceptions/user-already-exists.exception';
 import { TokenExpiredException } from '../exceptions/token-expired.exception';
 import { InvalidOtpException } from '../exceptions/invalid-otp.exception';
+import { OAuthException } from '../exceptions/oauth.exception';
 
 @Injectable()
 export class AuthDomainService {
@@ -37,6 +44,10 @@ export class AuthDomainService {
     private readonly roleRepository: RoleRepositoryPort,
     @Inject(OTP_REPOSITORY_PORT)
     private readonly otpRepository: OtpRepositoryPort,
+    @Inject(OAUTH_ACCOUNT_REPOSITORY_PORT)
+    private readonly oauthAccountRepository: OAuthAccountRepositoryPort,
+    @Inject(OAUTH_PROVIDER_PORT)
+    private readonly oauthProvider: OAuthProviderPort,
   ) {}
 
   async register(email: string, password: string, firstName: string, lastName: string): Promise<User> {
@@ -208,6 +219,96 @@ export class AuthDomainService {
       const roles = defaultRole ? [defaultRole] : [];
       user = new User(randomUUID(), emailVO, null, '', '', true, roles);
       user = await this.userRepository.save(user);
+    }
+
+    if (!user.isActive) {
+      throw new InvalidCredentialsException('Account is deactivated');
+    }
+
+    // Generate tokens
+    const tokens = await this.tokenGenerator.generateTokenPair({
+      sub: user.id,
+      email: user.email.value,
+      roles: user.roles.map((r) => r.name),
+    });
+
+    const refreshToken = new RefreshToken(
+      randomUUID(),
+      tokens.refreshToken,
+      user.id,
+      new Date(Date.now() + refreshExpirationSeconds * 1000),
+      false,
+    );
+
+    await this.refreshTokenRepository.save(refreshToken);
+
+    return { user, tokens, isNewUser };
+  }
+
+  async loginWithOAuth(
+    provider: string,
+    code: string,
+    redirectUri: string,
+    refreshExpirationSeconds: number,
+  ): Promise<{ user: User; tokens: TokenPair; isNewUser: boolean }> {
+    // Validate provider
+    const providerVO = OAuthProvider.create(provider);
+
+    // Exchange code for profile
+    let profile;
+    try {
+      profile = await this.oauthProvider.getProfile(providerVO.value, code, redirectUri);
+    } catch (error) {
+      if (error instanceof OAuthException) throw error;
+      throw new OAuthException('Failed to exchange OAuth code for profile');
+    }
+
+    if (!profile.email) {
+      throw new OAuthException('OAuth provider did not return an email address');
+    }
+
+    const normalizedEmail = profile.email.toLowerCase().trim();
+
+    // Check if OAuth account already linked
+    const existingLink = await this.oauthAccountRepository.findByProviderAndProviderUserId(
+      providerVO.value,
+      profile.providerUserId,
+    );
+
+    let user: User;
+    let isNewUser = false;
+
+    if (existingLink) {
+      // Existing OAuth link — load user
+      const found = await this.userRepository.findById(existingLink.userId);
+      if (!found) {
+        throw new OAuthException('Linked user account not found');
+      }
+      user = found;
+    } else {
+      // No link — check if email matches existing user
+      const existingUser = await this.userRepository.findByEmail(normalizedEmail);
+      if (existingUser) {
+        user = existingUser;
+      } else {
+        // Create new user (like OTP flow — no password)
+        isNewUser = true;
+        const emailVO = Email.create(normalizedEmail);
+        const defaultRole = await this.roleRepository.findDefault();
+        const roles = defaultRole ? [defaultRole] : [];
+        user = new User(randomUUID(), emailVO, null, profile.firstName || '', profile.lastName || '', true, roles);
+        user = await this.userRepository.save(user);
+      }
+
+      // Link OAuth account
+      const oauthAccount = new OAuthAccount(
+        randomUUID(),
+        user.id,
+        providerVO.value,
+        profile.providerUserId,
+        normalizedEmail,
+      );
+      await this.oauthAccountRepository.save(oauthAccount);
     }
 
     if (!user.isActive) {

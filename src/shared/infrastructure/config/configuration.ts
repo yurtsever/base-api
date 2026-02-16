@@ -2,6 +2,7 @@ export interface AppConfig {
   nodeEnv: string;
   port: number;
   apiPrefix: string;
+  baseUrl: string;
 }
 
 export interface DatabaseConfig {
@@ -63,6 +64,16 @@ export interface OtpConfig {
   resendInterval: number;
 }
 
+export interface OAuthProviderConfig {
+  clientId: string;
+  clientSecret: string;
+}
+
+export interface OAuthConfig {
+  google: OAuthProviderConfig;
+  github: OAuthProviderConfig;
+}
+
 export interface Configuration {
   app: AppConfig;
   database: DatabaseConfig;
@@ -73,6 +84,7 @@ export interface Configuration {
   audit: AuditConfig;
   email: EmailConfig;
   otp: OtpConfig;
+  oauth: OAuthConfig;
 }
 
 export default (): Configuration => ({
@@ -80,6 +92,7 @@ export default (): Configuration => ({
     nodeEnv: process.env.NODE_ENV || 'development',
     port: parseInt(process.env.PORT || '3000', 10),
     apiPrefix: process.env.API_PREFIX || 'api',
+    baseUrl: process.env.APP_BASE_URL || 'http://localhost:3000',
   },
   database: {
     url: process.env.DATABASE_URL || '',
@@ -131,5 +144,15 @@ export default (): Configuration => ({
     expiration: parseInt(process.env.OTP_EXPIRATION || '300', 10),
     maxAttempts: parseInt(process.env.OTP_MAX_ATTEMPTS || '5', 10),
     resendInterval: parseInt(process.env.OTP_RESEND_INTERVAL || '60', 10),
+  },
+  oauth: {
+    google: {
+      clientId: process.env.OAUTH_GOOGLE_CLIENT_ID || '',
+      clientSecret: process.env.OAUTH_GOOGLE_CLIENT_SECRET || '',
+    },
+    github: {
+      clientId: process.env.OAUTH_GITHUB_CLIENT_ID || '',
+      clientSecret: process.env.OAUTH_GITHUB_CLIENT_SECRET || '',
+    },
   },
 });

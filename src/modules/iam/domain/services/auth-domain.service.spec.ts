@@ -12,9 +12,14 @@ import type { RoleRepositoryPort } from '../ports/role-repository.port';
 import { ROLE_REPOSITORY_PORT } from '../ports/role-repository.port';
 import type { OtpRepositoryPort } from '../ports/otp-repository.port';
 import { OTP_REPOSITORY_PORT } from '../ports/otp-repository.port';
+import type { OAuthAccountRepositoryPort } from '../ports/oauth-account-repository.port';
+import { OAUTH_ACCOUNT_REPOSITORY_PORT } from '../ports/oauth-account-repository.port';
+import type { OAuthProviderPort } from '../ports/oauth-provider.port';
+import { OAUTH_PROVIDER_PORT } from '../ports/oauth-provider.port';
 import { User } from '../models/user.model';
 import { Role } from '../models/role.model';
 import { Otp } from '../models/otp.model';
+import { OAuthAccount } from '../models/oauth-account.model';
 import { RefreshToken } from '../models/refresh-token.model';
 import { Email } from '../value-objects/email.value-object';
 import { Password } from '../value-objects/password.value-object';
@@ -22,6 +27,7 @@ import { InvalidCredentialsException } from '../exceptions/invalid-credentials.e
 import { UserAlreadyExistsException } from '../exceptions/user-already-exists.exception';
 import { TokenExpiredException } from '../exceptions/token-expired.exception';
 import { InvalidOtpException } from '../exceptions/invalid-otp.exception';
+import { OAuthException } from '../exceptions/oauth.exception';
 
 describe('AuthDomainService', () => {
   let service: AuthDomainService;
@@ -31,6 +37,8 @@ describe('AuthDomainService', () => {
   let tokenGenerator: jest.Mocked<TokenGeneratorPort>;
   let roleRepository: jest.Mocked<RoleRepositoryPort>;
   let otpRepository: jest.Mocked<OtpRepositoryPort>;
+  let oauthAccountRepository: jest.Mocked<OAuthAccountRepositoryPort>;
+  let oauthProvider: jest.Mocked<OAuthProviderPort>;
 
   beforeEach(async () => {
     userRepository = {
@@ -76,6 +84,17 @@ describe('AuthDomainService', () => {
       deleteExpired: jest.fn(),
     } as jest.Mocked<OtpRepositoryPort>;
 
+    oauthAccountRepository = {
+      save: jest.fn(),
+      findByProviderAndProviderUserId: jest.fn(),
+      findAllByUserId: jest.fn(),
+      deleteByProviderAndUserId: jest.fn(),
+    } as jest.Mocked<OAuthAccountRepositoryPort>;
+
+    oauthProvider = {
+      getProfile: jest.fn(),
+    } as jest.Mocked<OAuthProviderPort>;
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthDomainService,
@@ -85,6 +104,8 @@ describe('AuthDomainService', () => {
         { provide: TOKEN_GENERATOR_PORT, useValue: tokenGenerator },
         { provide: ROLE_REPOSITORY_PORT, useValue: roleRepository },
         { provide: OTP_REPOSITORY_PORT, useValue: otpRepository },
+        { provide: OAUTH_ACCOUNT_REPOSITORY_PORT, useValue: oauthAccountRepository },
+        { provide: OAUTH_PROVIDER_PORT, useValue: oauthProvider },
       ],
     }).compile();
 
@@ -417,6 +438,134 @@ describe('AuthDomainService', () => {
       userRepository.findByEmail.mockResolvedValue(inactiveUser);
 
       await expect(service.verifyOtpAndLogin('test@example.com', '123456', 5, 604800)).rejects.toThrow(
+        InvalidCredentialsException,
+      );
+    });
+  });
+
+  describe('loginWithOAuth', () => {
+    const mockTokens = {
+      accessToken: 'access-token',
+      refreshToken: 'refresh-token',
+      expiresIn: 900,
+    };
+
+    const mockProfile = {
+      providerUserId: 'goog-123',
+      email: 'user@gmail.com',
+      firstName: 'John',
+      lastName: 'Doe',
+    };
+
+    beforeEach(() => {
+      tokenGenerator.generateTokenPair.mockResolvedValue(mockTokens);
+      refreshTokenRepository.save.mockImplementation((t: RefreshToken) => Promise.resolve(t));
+    });
+
+    it('should login existing user with linked OAuth account', async () => {
+      const existingUser = new User('user-id', Email.create('user@gmail.com'), null, 'John', 'Doe', true, [
+        new Role('role-1', 'user', 'Default', true, []),
+      ]);
+      const existingLink = new OAuthAccount('acc-1', 'user-id', 'google', 'goog-123', 'user@gmail.com');
+
+      oauthProvider.getProfile.mockResolvedValue(mockProfile);
+      oauthAccountRepository.findByProviderAndProviderUserId.mockResolvedValue(existingLink);
+      userRepository.findById.mockResolvedValue(existingUser);
+
+      const result = await service.loginWithOAuth('google', 'auth-code', 'http://localhost/callback', 604800);
+
+      expect(result.user).toBe(existingUser);
+      expect(result.isNewUser).toBe(false);
+      expect(result.tokens.accessToken).toBe('access-token');
+      expect(oauthAccountRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('should link OAuth account to existing user with matching email', async () => {
+      const existingUser = new User(
+        'user-id',
+        Email.create('user@gmail.com'),
+        Password.createFromHash('hash'),
+        'John',
+        'Doe',
+        true,
+        [],
+      );
+
+      oauthProvider.getProfile.mockResolvedValue(mockProfile);
+      oauthAccountRepository.findByProviderAndProviderUserId.mockResolvedValue(null);
+      userRepository.findByEmail.mockResolvedValue(existingUser);
+      oauthAccountRepository.save.mockImplementation((a: OAuthAccount) => Promise.resolve(a));
+
+      const result = await service.loginWithOAuth('google', 'auth-code', 'http://localhost/callback', 604800);
+
+      expect(result.user).toBe(existingUser);
+      expect(result.isNewUser).toBe(false);
+      expect(oauthAccountRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({ provider: 'google', providerUserId: 'goog-123' }),
+      );
+    });
+
+    it('should create new user when no existing account found', async () => {
+      const defaultRole = new Role('role-1', 'user', 'Default', true, []);
+
+      oauthProvider.getProfile.mockResolvedValue(mockProfile);
+      oauthAccountRepository.findByProviderAndProviderUserId.mockResolvedValue(null);
+      userRepository.findByEmail.mockResolvedValue(null);
+      roleRepository.findDefault.mockResolvedValue(defaultRole);
+      userRepository.save.mockImplementation((user: User) => Promise.resolve(user));
+      oauthAccountRepository.save.mockImplementation((a: OAuthAccount) => Promise.resolve(a));
+
+      const result = await service.loginWithOAuth('google', 'auth-code', 'http://localhost/callback', 604800);
+
+      expect(result.isNewUser).toBe(true);
+      expect(result.user.hasPassword()).toBe(false);
+      expect(userRepository.save).toHaveBeenCalled();
+      expect(oauthAccountRepository.save).toHaveBeenCalled();
+    });
+
+    it('should throw for unsupported provider', async () => {
+      await expect(
+        service.loginWithOAuth('facebook', 'auth-code', 'http://localhost/callback', 604800),
+      ).rejects.toThrow('Unsupported OAuth provider');
+    });
+
+    it('should throw when profile exchange fails', async () => {
+      oauthProvider.getProfile.mockRejectedValue(new Error('Network error'));
+
+      await expect(service.loginWithOAuth('google', 'auth-code', 'http://localhost/callback', 604800)).rejects.toThrow(
+        OAuthException,
+      );
+    });
+
+    it('should throw when profile has no email', async () => {
+      oauthProvider.getProfile.mockResolvedValue({ ...mockProfile, email: '' });
+
+      await expect(service.loginWithOAuth('google', 'auth-code', 'http://localhost/callback', 604800)).rejects.toThrow(
+        OAuthException,
+      );
+    });
+
+    it('should throw when linked user not found', async () => {
+      const existingLink = new OAuthAccount('acc-1', 'user-id', 'google', 'goog-123', 'user@gmail.com');
+
+      oauthProvider.getProfile.mockResolvedValue(mockProfile);
+      oauthAccountRepository.findByProviderAndProviderUserId.mockResolvedValue(existingLink);
+      userRepository.findById.mockResolvedValue(null);
+
+      await expect(service.loginWithOAuth('google', 'auth-code', 'http://localhost/callback', 604800)).rejects.toThrow(
+        OAuthException,
+      );
+    });
+
+    it('should throw when user is deactivated', async () => {
+      const inactiveUser = new User('user-id', Email.create('user@gmail.com'), null, 'John', 'Doe', false, []);
+      const existingLink = new OAuthAccount('acc-1', 'user-id', 'google', 'goog-123', 'user@gmail.com');
+
+      oauthProvider.getProfile.mockResolvedValue(mockProfile);
+      oauthAccountRepository.findByProviderAndProviderUserId.mockResolvedValue(existingLink);
+      userRepository.findById.mockResolvedValue(inactiveUser);
+
+      await expect(service.loginWithOAuth('google', 'auth-code', 'http://localhost/callback', 604800)).rejects.toThrow(
         InvalidCredentialsException,
       );
     });

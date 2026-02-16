@@ -18,6 +18,8 @@ import { PASSWORD_HASHER_PORT } from './domain/ports/password-hasher.port';
 import { TOKEN_GENERATOR_PORT } from './domain/ports/token-generator.port';
 import { ROLE_REPOSITORY_PORT } from './domain/ports/role-repository.port';
 import { OTP_REPOSITORY_PORT } from './domain/ports/otp-repository.port';
+import { OAUTH_ACCOUNT_REPOSITORY_PORT } from './domain/ports/oauth-account-repository.port';
+import { OAUTH_PROVIDER_PORT } from './domain/ports/oauth-provider.port';
 
 // Application Use Case Ports
 import { REGISTER_USE_CASE } from './application/ports/register.use-case';
@@ -30,6 +32,8 @@ import { UPDATE_USER_USE_CASE } from './application/ports/update-user.use-case';
 import { DELETE_USER_USE_CASE } from './application/ports/delete-user.use-case';
 import { REQUEST_OTP_USE_CASE } from './application/ports/request-otp.use-case';
 import { VERIFY_OTP_USE_CASE } from './application/ports/verify-otp.use-case';
+import { OAUTH_LOGIN_USE_CASE } from './application/ports/oauth-login.use-case';
+import { GET_OAUTH_URL_USE_CASE } from './application/ports/get-oauth-url.use-case';
 
 // Application Use Cases
 import { RegisterUseCase } from './application/use-cases/register.use-case';
@@ -42,6 +46,8 @@ import { UpdateUserUseCase } from './application/use-cases/update-user.use-case'
 import { DeleteUserUseCase } from './application/use-cases/delete-user.use-case';
 import { RequestOtpUseCase } from './application/use-cases/request-otp.use-case';
 import { VerifyOtpUseCase } from './application/use-cases/verify-otp.use-case';
+import { OAuthLoginUseCase } from './application/use-cases/oauth-login.use-case';
+import { GetOAuthUrlUseCase } from './application/use-cases/get-oauth-url.use-case';
 
 // Infrastructure - Persistence
 import { UserEntity } from './infrastructure/persistence/entities/user.entity';
@@ -49,14 +55,17 @@ import { RoleEntity } from './infrastructure/persistence/entities/role.entity';
 import { PermissionEntity } from './infrastructure/persistence/entities/permission.entity';
 import { RefreshTokenEntity } from './infrastructure/persistence/entities/refresh-token.entity';
 import { OtpEntity } from './infrastructure/persistence/entities/otp.entity';
+import { OAuthAccountEntity } from './infrastructure/persistence/entities/oauth-account.entity';
 import { TypeOrmUserRepositoryAdapter } from './infrastructure/persistence/repositories/typeorm-user-repository.adapter';
 import { TypeOrmRefreshTokenRepositoryAdapter } from './infrastructure/persistence/repositories/typeorm-refresh-token-repository.adapter';
 import { TypeOrmRoleRepositoryAdapter } from './infrastructure/persistence/repositories/typeorm-role-repository.adapter';
 import { TypeOrmOtpRepositoryAdapter } from './infrastructure/persistence/repositories/typeorm-otp-repository.adapter';
+import { TypeOrmOAuthAccountRepositoryAdapter } from './infrastructure/persistence/repositories/typeorm-oauth-account-repository.adapter';
 
 // Infrastructure - Adapters
 import { BcryptPasswordHasherAdapter } from './infrastructure/adapters/bcrypt-password-hasher.adapter';
 import { JwtTokenGeneratorAdapter } from './infrastructure/adapters/jwt-token-generator.adapter';
+import { OAuthProviderAdapter } from './infrastructure/adapters/oauth-provider.adapter';
 
 // Infrastructure - Strategy & Guards
 import { JwtStrategy } from './infrastructure/strategies/jwt.strategy';
@@ -74,7 +83,14 @@ import { UserController } from './infrastructure/controllers/user.controller';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([UserEntity, RoleEntity, PermissionEntity, RefreshTokenEntity, OtpEntity]),
+    TypeOrmModule.forFeature([
+      UserEntity,
+      RoleEntity,
+      PermissionEntity,
+      RefreshTokenEntity,
+      OtpEntity,
+      OAuthAccountEntity,
+    ]),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       inject: [ConfigService],
@@ -118,6 +134,14 @@ import { UserController } from './infrastructure/controllers/user.controller';
       provide: OTP_REPOSITORY_PORT,
       useClass: TypeOrmOtpRepositoryAdapter,
     },
+    {
+      provide: OAUTH_ACCOUNT_REPOSITORY_PORT,
+      useClass: TypeOrmOAuthAccountRepositoryAdapter,
+    },
+    {
+      provide: OAUTH_PROVIDER_PORT,
+      useClass: OAuthProviderAdapter,
+    },
 
     // Use Cases (Input Ports)
     { provide: REGISTER_USE_CASE, useClass: RegisterUseCase },
@@ -130,6 +154,8 @@ import { UserController } from './infrastructure/controllers/user.controller';
     { provide: DELETE_USER_USE_CASE, useClass: DeleteUserUseCase },
     { provide: REQUEST_OTP_USE_CASE, useClass: RequestOtpUseCase },
     { provide: VERIFY_OTP_USE_CASE, useClass: VerifyOtpUseCase },
+    { provide: OAUTH_LOGIN_USE_CASE, useClass: OAuthLoginUseCase },
+    { provide: GET_OAUTH_URL_USE_CASE, useClass: GetOAuthUrlUseCase },
 
     // Tasks
     ExpiredTokenCleanupTask,

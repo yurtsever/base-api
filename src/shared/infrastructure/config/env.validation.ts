@@ -168,6 +168,27 @@ class EnvironmentVariables {
   @Min(10)
   @IsOptional()
   OTP_RESEND_INTERVAL: number = 60;
+
+  // OAuth
+  @IsString()
+  @IsOptional()
+  APP_BASE_URL: string = 'http://localhost:3000';
+
+  @IsString()
+  @IsOptional()
+  OAUTH_GOOGLE_CLIENT_ID: string = '';
+
+  @IsString()
+  @IsOptional()
+  OAUTH_GOOGLE_CLIENT_SECRET: string = '';
+
+  @IsString()
+  @IsOptional()
+  OAUTH_GITHUB_CLIENT_ID: string = '';
+
+  @IsString()
+  @IsOptional()
+  OAUTH_GITHUB_CLIENT_SECRET: string = '';
 }
 
 export function validate(config: Record<string, unknown>) {

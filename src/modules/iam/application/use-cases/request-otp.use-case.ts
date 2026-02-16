@@ -29,7 +29,9 @@ export class RequestOtpUseCase implements RequestOtpUseCasePort {
       });
     } catch (error) {
       // Log the error but return same message to prevent email enumeration
-      this.logger.debug(`OTP request failed for ${dto.email}: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.debug(
+        `OTP request failed for ${dto.email}: ${error instanceof Error ? error.message : String(error)}`,
+      );
       throw error;
     }
 

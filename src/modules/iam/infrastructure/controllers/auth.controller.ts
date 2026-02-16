@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, HttpStatus, Inject, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Inject, Param, Post, Query, Req, Res } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
@@ -21,6 +21,11 @@ import type { RequestOtpUseCasePort } from '../../application/ports/request-otp.
 import { REQUEST_OTP_USE_CASE } from '../../application/ports/request-otp.use-case';
 import type { VerifyOtpUseCasePort } from '../../application/ports/verify-otp.use-case';
 import { VERIFY_OTP_USE_CASE } from '../../application/ports/verify-otp.use-case';
+import { OAuthCallbackDto } from '../../application/dtos/oauth-callback.dto';
+import type { OAuthLoginUseCasePort } from '../../application/ports/oauth-login.use-case';
+import { OAUTH_LOGIN_USE_CASE } from '../../application/ports/oauth-login.use-case';
+import type { GetOAuthUrlUseCasePort } from '../../application/ports/get-oauth-url.use-case';
+import { GET_OAUTH_URL_USE_CASE } from '../../application/ports/get-oauth-url.use-case';
 import { setRefreshTokenCookie, clearRefreshTokenCookie } from '../utils/cookie.util';
 
 @ApiTags('auth')
@@ -39,6 +44,10 @@ export class AuthController {
     private readonly requestOtpUseCase: RequestOtpUseCasePort,
     @Inject(VERIFY_OTP_USE_CASE)
     private readonly verifyOtpUseCase: VerifyOtpUseCasePort,
+    @Inject(GET_OAUTH_URL_USE_CASE)
+    private readonly getOAuthUrlUseCase: GetOAuthUrlUseCasePort,
+    @Inject(OAUTH_LOGIN_USE_CASE)
+    private readonly oauthLoginUseCase: OAuthLoginUseCasePort,
     private readonly configService: ConfigService,
   ) {}
 
@@ -148,6 +157,40 @@ export class AuthController {
       accessToken: result.accessToken,
       expiresIn: result.expiresIn,
       tokenType: result.tokenType,
+    };
+  }
+
+  @Get('oauth/:provider/url')
+  @Public()
+  @ApiOperation({ summary: 'Get OAuth authorization URL for a provider' })
+  getOAuthUrl(
+    @Param('provider') provider: string,
+    @Query('redirectUri') redirectUri: string,
+  ): { url: string; state: string } {
+    return this.getOAuthUrlUseCase.execute(provider, redirectUri);
+  }
+
+  @Post('oauth/callback')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Exchange OAuth code for authentication tokens' })
+  async oauthCallback(
+    @Body() dto: OAuthCallbackDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<AuthCookieResponse & { isNewUser: boolean }> {
+    const result = await this.oauthLoginUseCase.execute(dto);
+
+    setRefreshTokenCookie(res, this.configService, {
+      refreshToken: result.refreshToken,
+      refreshExpiresIn: this.configService.get<number>('auth.jwt.refreshExpiration', 604800),
+    });
+
+    return {
+      user: result.user,
+      accessToken: result.accessToken,
+      expiresIn: result.expiresIn,
+      tokenType: result.tokenType,
+      isNewUser: result.isNewUser,
     };
   }
 }

@@ -8,6 +8,8 @@ import { LOGOUT_USE_CASE } from '../../application/ports/logout.use-case';
 import { REFRESH_TOKEN_USE_CASE } from '../../application/ports/refresh-token.use-case';
 import { REQUEST_OTP_USE_CASE } from '../../application/ports/request-otp.use-case';
 import { VERIFY_OTP_USE_CASE } from '../../application/ports/verify-otp.use-case';
+import { OAUTH_LOGIN_USE_CASE } from '../../application/ports/oauth-login.use-case';
+import { GET_OAUTH_URL_USE_CASE } from '../../application/ports/get-oauth-url.use-case';
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -17,6 +19,8 @@ describe('AuthController', () => {
   let refreshTokenUseCase: { execute: jest.Mock };
   let requestOtpUseCase: { execute: jest.Mock };
   let verifyOtpUseCase: { execute: jest.Mock };
+  let getOAuthUrlUseCase: { execute: jest.Mock };
+  let oauthLoginUseCase: { execute: jest.Mock };
   let mockRes: Partial<Response>;
   let mockConfigService: Partial<ConfigService>;
 
@@ -39,6 +43,8 @@ describe('AuthController', () => {
     refreshTokenUseCase = { execute: jest.fn() };
     requestOtpUseCase = { execute: jest.fn() };
     verifyOtpUseCase = { execute: jest.fn() };
+    getOAuthUrlUseCase = { execute: jest.fn() };
+    oauthLoginUseCase = { execute: jest.fn() };
     mockRes = { cookie: jest.fn(), clearCookie: jest.fn() } as Partial<Response>;
     mockConfigService = {
       get: jest.fn((key: string, defaultValue?: unknown) => {
@@ -61,6 +67,8 @@ describe('AuthController', () => {
         { provide: REFRESH_TOKEN_USE_CASE, useValue: refreshTokenUseCase },
         { provide: REQUEST_OTP_USE_CASE, useValue: requestOtpUseCase },
         { provide: VERIFY_OTP_USE_CASE, useValue: verifyOtpUseCase },
+        { provide: GET_OAUTH_URL_USE_CASE, useValue: getOAuthUrlUseCase },
+        { provide: OAUTH_LOGIN_USE_CASE, useValue: oauthLoginUseCase },
         { provide: ConfigService, useValue: mockConfigService },
       ],
     }).compile();
@@ -206,6 +214,54 @@ describe('AuthController', () => {
         tokenType: 'Bearer',
       });
       expect(result).not.toHaveProperty('refreshToken');
+    });
+  });
+
+  describe('getOAuthUrl', () => {
+    it('should return authorization URL and state', () => {
+      const expected = { url: 'https://accounts.google.com/o/oauth2/v2/auth?...', state: 'random-state' };
+      getOAuthUrlUseCase.execute.mockReturnValue(expected);
+
+      const result = controller.getOAuthUrl('google', 'http://localhost:3000/callback');
+
+      expect(getOAuthUrlUseCase.execute).toHaveBeenCalledWith('google', 'http://localhost:3000/callback');
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('oauthCallback', () => {
+    it('should set refresh cookie and return accessToken with isNewUser', async () => {
+      const oauthResult = { ...authResult, isNewUser: true };
+      oauthLoginUseCase.execute.mockResolvedValue(oauthResult);
+
+      const dto = { provider: 'google', code: 'auth-code', redirectUri: 'http://localhost:3000/callback' };
+      const result = await controller.oauthCallback(dto, mockRes as Response);
+
+      expect(oauthLoginUseCase.execute).toHaveBeenCalledWith(dto);
+      expect(mockRes.cookie).toHaveBeenCalledTimes(1);
+      expect(mockRes.cookie).toHaveBeenCalledWith(
+        'refresh_token',
+        'refresh-hex',
+        expect.objectContaining({ httpOnly: true, path: '/api/auth/refresh' }),
+      );
+      expect(result).toEqual({
+        user: authResult.user,
+        accessToken: 'access-jwt',
+        expiresIn: 900,
+        tokenType: 'Bearer',
+        isNewUser: true,
+      });
+      expect(result).not.toHaveProperty('refreshToken');
+    });
+
+    it('should return isNewUser false for existing users', async () => {
+      const oauthResult = { ...authResult, isNewUser: false };
+      oauthLoginUseCase.execute.mockResolvedValue(oauthResult);
+
+      const dto = { provider: 'github', code: 'auth-code', redirectUri: 'http://localhost:3000/callback' };
+      const result = await controller.oauthCallback(dto, mockRes as Response);
+
+      expect(result.isNewUser).toBe(false);
     });
   });
 });
