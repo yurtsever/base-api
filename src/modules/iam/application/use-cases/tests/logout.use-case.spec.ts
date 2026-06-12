@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { LogoutUseCase } from './logout.use-case';
-import { AuthDomainService } from '../../domain/services/auth-domain.service';
+import { LogoutUseCase } from '../logout.use-case';
+import { AuthDomainService } from '../../../domain/services/auth-domain.service';
 
 describe('LogoutUseCase', () => {
   let useCase: LogoutUseCase;

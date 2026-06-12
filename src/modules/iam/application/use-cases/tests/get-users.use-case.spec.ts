@@ -1,10 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { GetUsersUseCase } from './get-users.use-case';
-import { UserDomainService } from '../../domain/services/user-domain.service';
-import { User } from '../../domain/models/user.model';
-import { Email } from '../../domain/value-objects/email.value-object';
-import { Password } from '../../domain/value-objects/password.value-object';
-import type { PaginatedResult } from '../../../../shared/application/interfaces';
+import { GetUsersUseCase } from '../get-users.use-case';
+import { UserDomainService } from '../../../domain/services/user-domain.service';
+import { User } from '../../../domain/models/user.model';
+import { Email } from '../../../domain/value-objects/email.value-object';
+import { Password } from '../../../domain/value-objects/password.value-object';
+import type { PaginatedResult } from '../../../../../shared/application/interfaces';
 
 describe('GetUsersUseCase', () => {
   let useCase: GetUsersUseCase;

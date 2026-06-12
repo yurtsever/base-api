@@ -1,10 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { RefreshTokenUseCase } from './refresh-token.use-case';
-import { AuthDomainService } from '../../domain/services/auth-domain.service';
-import { User } from '../../domain/models/user.model';
-import { Email } from '../../domain/value-objects/email.value-object';
-import { Password } from '../../domain/value-objects/password.value-object';
+import { RefreshTokenUseCase } from '../refresh-token.use-case';
+import { AuthDomainService } from '../../../domain/services/auth-domain.service';
+import { User } from '../../../domain/models/user.model';
+import { Email } from '../../../domain/value-objects/email.value-object';
+import { Password } from '../../../domain/value-objects/password.value-object';
 
 describe('RefreshTokenUseCase', () => {
   let useCase: RefreshTokenUseCase;

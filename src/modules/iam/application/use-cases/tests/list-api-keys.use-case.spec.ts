@@ -1,6 +1,6 @@
-import { ListApiKeysUseCase } from './list-api-keys.use-case';
-import type { ApiKeyRepositoryPort } from '../../domain/ports/api-key-repository.port';
-import { ApiKey } from '../../domain/models/api-key.model';
+import { ListApiKeysUseCase } from '../list-api-keys.use-case';
+import type { ApiKeyRepositoryPort } from '../../../domain/ports/api-key-repository.port';
+import { ApiKey } from '../../../domain/models/api-key.model';
 
 describe('ListApiKeysUseCase', () => {
   let useCase: ListApiKeysUseCase;

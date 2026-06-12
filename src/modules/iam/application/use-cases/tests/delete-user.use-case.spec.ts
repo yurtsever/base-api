@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { DeleteUserUseCase } from './delete-user.use-case';
-import { UserDomainService } from '../../domain/services/user-domain.service';
+import { DeleteUserUseCase } from '../delete-user.use-case';
+import { UserDomainService } from '../../../domain/services/user-domain.service';
 
 describe('DeleteUserUseCase', () => {
   let useCase: DeleteUserUseCase;

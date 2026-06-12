@@ -1,7 +1,7 @@
-import { CreateApiKeyUseCase } from './create-api-key.use-case';
-import type { ApiKeyRepositoryPort } from '../../domain/ports/api-key-repository.port';
-import type { ApiKeyHasherPort } from '../../domain/ports/api-key-hasher.port';
-import { ApiKey } from '../../domain/models/api-key.model';
+import { CreateApiKeyUseCase } from '../create-api-key.use-case';
+import type { ApiKeyRepositoryPort } from '../../../domain/ports/api-key-repository.port';
+import type { ApiKeyHasherPort } from '../../../domain/ports/api-key-hasher.port';
+import { ApiKey } from '../../../domain/models/api-key.model';
 
 describe('CreateApiKeyUseCase', () => {
   let useCase: CreateApiKeyUseCase;

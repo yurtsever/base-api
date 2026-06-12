@@ -1,9 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { UpdateUserUseCase } from './update-user.use-case';
-import { UserDomainService } from '../../domain/services/user-domain.service';
-import { User } from '../../domain/models/user.model';
-import { Email } from '../../domain/value-objects/email.value-object';
-import { Password } from '../../domain/value-objects/password.value-object';
+import { UpdateUserUseCase } from '../update-user.use-case';
+import { UserDomainService } from '../../../domain/services/user-domain.service';
+import { User } from '../../../domain/models/user.model';
+import { Email } from '../../../domain/value-objects/email.value-object';
+import { Password } from '../../../domain/value-objects/password.value-object';
 
 describe('UpdateUserUseCase', () => {
   let useCase: UpdateUserUseCase;
