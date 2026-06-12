@@ -1,10 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { RegisterUseCase } from './register.use-case';
-import { AuthDomainService } from '../../domain/services/auth-domain.service';
-import { User } from '../../domain/models/user.model';
-import { Email } from '../../domain/value-objects/email.value-object';
-import { Password } from '../../domain/value-objects/password.value-object';
+import { RegisterUseCase } from '../register.use-case';
+import { AuthDomainService } from '../../../domain/services/auth-domain.service';
+import { User } from '../../../domain/models/user.model';
+import { Email } from '../../../domain/value-objects/email.value-object';
+import { Password } from '../../../domain/value-objects/password.value-object';
 
 describe('RegisterUseCase', () => {
   let useCase: RegisterUseCase;

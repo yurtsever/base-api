@@ -1,8 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { RequestOtpUseCase } from './request-otp.use-case';
-import { AuthDomainService } from '../../domain/services/auth-domain.service';
-import { EmailService } from '../../../email/infrastructure/services/email.service';
+import { RequestOtpUseCase } from '../request-otp.use-case';
+import { AuthDomainService } from '../../../domain/services/auth-domain.service';
+import { EmailService } from '../../../../email/infrastructure/services/email.service';
 
 describe('RequestOtpUseCase', () => {
   let useCase: RequestOtpUseCase;

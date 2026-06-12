@@ -1,10 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { VerifyOtpUseCase } from './verify-otp.use-case';
-import { AuthDomainService } from '../../domain/services/auth-domain.service';
-import { User } from '../../domain/models/user.model';
-import { Email } from '../../domain/value-objects/email.value-object';
-import { Role } from '../../domain/models/role.model';
+import { VerifyOtpUseCase } from '../verify-otp.use-case';
+import { AuthDomainService } from '../../../domain/services/auth-domain.service';
+import { User } from '../../../domain/models/user.model';
+import { Email } from '../../../domain/value-objects/email.value-object';
+import { Role } from '../../../domain/models/role.model';
 
 describe('VerifyOtpUseCase', () => {
   let useCase: VerifyOtpUseCase;

@@ -1,7 +1,7 @@
-import { RevokeApiKeyUseCase } from './revoke-api-key.use-case';
-import type { ApiKeyRepositoryPort } from '../../domain/ports/api-key-repository.port';
-import { ApiKey } from '../../domain/models/api-key.model';
-import { InvalidApiKeyException } from '../../domain/exceptions/invalid-api-key.exception';
+import { RevokeApiKeyUseCase } from '../revoke-api-key.use-case';
+import type { ApiKeyRepositoryPort } from '../../../domain/ports/api-key-repository.port';
+import { ApiKey } from '../../../domain/models/api-key.model';
+import { InvalidApiKeyException } from '../../../domain/exceptions/invalid-api-key.exception';
 
 describe('RevokeApiKeyUseCase', () => {
   let useCase: RevokeApiKeyUseCase;
