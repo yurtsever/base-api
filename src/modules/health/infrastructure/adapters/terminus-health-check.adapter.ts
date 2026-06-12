@@ -20,7 +20,7 @@ export class TerminusHealthCheckAdapter implements HealthCheckPort {
     } catch (error: any) {
       return {
         status: 'down',
-        message: error.message,
+        message: (error as Error).message,
       };
     }
   }
@@ -35,7 +35,7 @@ export class TerminusHealthCheckAdapter implements HealthCheckPort {
     } catch (error: any) {
       return {
         status: 'down',
-        message: error.message,
+        message: (error as Error).message,
       };
     }
   }
@@ -53,7 +53,7 @@ export class TerminusHealthCheckAdapter implements HealthCheckPort {
     } catch (error: any) {
       return {
         status: 'down',
-        message: error.message,
+        message: (error as Error).message,
       };
     }
   }

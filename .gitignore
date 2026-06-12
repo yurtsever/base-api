@@ -61,3 +61,6 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # pnpm
 .pnpm-approve-builds.json
+
+# Claude Code (local settings, worktrees, job artifacts)
+.claude/
