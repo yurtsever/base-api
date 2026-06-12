@@ -41,6 +41,15 @@ describe('Configuration', () => {
     expect(config.security.corsOrigins).toEqual(['http://localhost:3000', 'http://localhost:4200']);
   });
 
+  it('should read JWT secret straight from env with no insecure fallback', () => {
+    process.env.JWT_SECRET = 'a-strong-random-secret-of-32-plus-chars';
+    expect(configuration().auth.jwt.secret).toBe('a-strong-random-secret-of-32-plus-chars');
+
+    delete process.env.JWT_SECRET;
+    // No hardcoded fallback: validation guarantees presence, so an unset env yields undefined here.
+    expect(configuration().auth.jwt.secret).toBeUndefined();
+  });
+
   it('should handle boolean environment variables', () => {
     process.env.DATABASE_SYNCHRONIZE = 'true';
     process.env.DATABASE_LOGGING = 'true';

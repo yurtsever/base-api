@@ -1,5 +1,5 @@
 import { plainToInstance } from 'class-transformer';
-import { IsString, IsNumber, IsOptional, IsEnum, IsBoolean, validateSync, Min, Max } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsEnum, IsBoolean, validateSync, Min, Max, MinLength } from 'class-validator';
 
 enum Environment {
   Development = 'development',
@@ -90,9 +90,11 @@ class EnvironmentVariables {
   @IsOptional()
   RATE_LIMIT_MAX: number = 10;
 
+  // REQUIRED: a strong, random secret of at least 32 chars (e.g. `openssl rand -hex 32`).
+  // No default is permitted — a hardcoded fallback would let anyone forge HS256 tokens.
   @IsString()
-  @IsOptional()
-  JWT_SECRET: string = 'default-dev-secret-change-me';
+  @MinLength(32)
+  JWT_SECRET!: string;
 
   @IsNumber()
   @Min(60)
