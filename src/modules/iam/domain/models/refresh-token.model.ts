@@ -5,6 +5,7 @@ export class RefreshToken extends Entity<string> {
     id: string,
     private readonly _token: string,
     private readonly _userId: string,
+    private readonly _familyId: string,
     private readonly _expiresAt: Date,
     private _isRevoked: boolean,
     private readonly _createdAt?: Date,
@@ -18,6 +19,14 @@ export class RefreshToken extends Entity<string> {
 
   get userId(): string {
     return this._userId;
+  }
+
+  /**
+   * Identifies the rotation lineage this token belongs to. A login starts a new
+   * family; each rotation inherits it. Reuse of a revoked token revokes the whole family.
+   */
+  get familyId(): string {
+    return this._familyId;
   }
 
   get expiresAt(): Date {

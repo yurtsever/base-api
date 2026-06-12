@@ -104,6 +104,7 @@ export class AuthDomainService {
       randomUUID(),
       tokens.refreshToken,
       user.id,
+      randomUUID(), // new token family
       new Date(Date.now() + refreshExpirationSeconds * 1000),
       false,
     );
@@ -122,7 +123,18 @@ export class AuthDomainService {
     refreshExpirationSeconds: number,
   ): Promise<{ user: User; tokens: TokenPair }> {
     const storedToken = await this.refreshTokenRepository.findByToken(refreshTokenValue);
-    if (!storedToken || !storedToken.isValid()) {
+    if (!storedToken) {
+      throw new TokenExpiredException('Refresh token is invalid or expired');
+    }
+
+    // Reuse detection: a token that still exists but is already revoked has been replayed
+    // after it was rotated (or logged out) — a token-theft signal. Revoke the whole family.
+    if (storedToken.isRevoked()) {
+      await this.refreshTokenRepository.revokeFamily(storedToken.familyId);
+      throw new TokenExpiredException('Refresh token has been revoked');
+    }
+
+    if (storedToken.isExpired()) {
       throw new TokenExpiredException('Refresh token is invalid or expired');
     }
 
@@ -141,6 +153,7 @@ export class AuthDomainService {
       randomUUID(),
       tokens.refreshToken,
       user.id,
+      storedToken.familyId, // same family — rotation preserves lineage
       new Date(Date.now() + refreshExpirationSeconds * 1000),
       false,
     );
@@ -237,6 +250,7 @@ export class AuthDomainService {
       randomUUID(),
       tokens.refreshToken,
       user.id,
+      randomUUID(), // new token family
       new Date(Date.now() + refreshExpirationSeconds * 1000),
       false,
     );
@@ -335,6 +349,7 @@ export class AuthDomainService {
       randomUUID(),
       tokens.refreshToken,
       user.id,
+      randomUUID(), // new token family
       new Date(Date.now() + refreshExpirationSeconds * 1000),
       false,
     );

@@ -6,6 +6,7 @@ describe('RefreshToken Model', () => {
       'token-id',
       'token-value',
       'user-id',
+      'family-id',
       new Date(Date.now() - 1000), // expired 1 second ago
       false,
     );
@@ -18,6 +19,7 @@ describe('RefreshToken Model', () => {
       'token-id',
       'token-value',
       'user-id',
+      'family-id',
       new Date(Date.now() + 60000), // expires in 60 seconds
       false,
     );
@@ -31,6 +33,7 @@ describe('RefreshToken Model', () => {
       'token-id',
       'token-value',
       'user-id',
+      'family-id',
       new Date(Date.now() + 60000),
       true, // revoked
     );
@@ -39,7 +42,14 @@ describe('RefreshToken Model', () => {
   });
 
   it('should revoke token', () => {
-    const token = new RefreshToken('token-id', 'token-value', 'user-id', new Date(Date.now() + 60000), false);
+    const token = new RefreshToken(
+      'token-id',
+      'token-value',
+      'user-id',
+      'family-id',
+      new Date(Date.now() + 60000),
+      false,
+    );
     expect(token.isValid()).toBe(true);
     token.revoke();
     expect(token.isRevoked()).toBe(true);
@@ -48,10 +58,11 @@ describe('RefreshToken Model', () => {
 
   it('should have correct properties', () => {
     const expiresAt = new Date(Date.now() + 60000);
-    const token = new RefreshToken('token-id', 'token-value', 'user-id', expiresAt, false);
+    const token = new RefreshToken('token-id', 'token-value', 'user-id', 'family-id', expiresAt, false);
     expect(token.id).toBe('token-id');
     expect(token.token).toBe('token-value');
     expect(token.userId).toBe('user-id');
+    expect(token.familyId).toBe('family-id');
     expect(token.expiresAt).toBe(expiresAt);
   });
 });

@@ -56,6 +56,7 @@ describe('AuthDomainService', () => {
       findByToken: jest.fn(),
       revokeByToken: jest.fn(),
       revokeAllByUserId: jest.fn(),
+      revokeFamily: jest.fn(),
       deleteExpired: jest.fn(),
       rotateToken: jest.fn(),
     } as jest.Mocked<RefreshTokenRepositoryPort>;
@@ -228,6 +229,7 @@ describe('AuthDomainService', () => {
         'token-id',
         'old-refresh-token',
         'user-id',
+        'family-1',
         new Date(Date.now() + 60000),
         false,
       );
@@ -254,6 +256,9 @@ describe('AuthDomainService', () => {
 
       expect(result.tokens.accessToken).toBe('new-access-token');
       expect(refreshTokenRepository.rotateToken).toHaveBeenCalledWith('old-refresh-token', expect.any(RefreshToken));
+      // Rotation preserves the lineage
+      const rotated = refreshTokenRepository.rotateToken.mock.calls[0][1];
+      expect(rotated.familyId).toBe('family-1');
     });
 
     it('should throw on invalid token', async () => {
@@ -267,12 +272,29 @@ describe('AuthDomainService', () => {
         'token-id',
         'expired-token',
         'user-id',
+        'family-1',
         new Date(Date.now() - 1000), // expired
         false,
       );
       refreshTokenRepository.findByToken.mockResolvedValue(expiredToken);
 
       await expect(service.refreshTokens('expired-token', 604800)).rejects.toThrow(TokenExpiredException);
+    });
+
+    it('should detect reuse of a revoked token and revoke the whole family', async () => {
+      const revokedToken = new RefreshToken(
+        'token-id',
+        'rotated-token',
+        'user-id',
+        'family-1',
+        new Date(Date.now() + 60000), // not expired, but already rotated/revoked
+        true,
+      );
+      refreshTokenRepository.findByToken.mockResolvedValue(revokedToken);
+
+      await expect(service.refreshTokens('rotated-token', 604800)).rejects.toThrow(TokenExpiredException);
+      expect(refreshTokenRepository.revokeFamily).toHaveBeenCalledWith('family-1');
+      expect(refreshTokenRepository.rotateToken).not.toHaveBeenCalled();
     });
   });
 
