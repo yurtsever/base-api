@@ -114,12 +114,18 @@ import { ApiKeyController } from './infrastructure/controllers/api-key.controlle
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('auth.jwt.secret', 'default-dev-secret-change-me'),
-        signOptions: {
-          expiresIn: configService.get<number>('auth.jwt.accessExpiration', 900),
-        },
-      }),
+      useFactory: (configService: ConfigService) => {
+        const secret = configService.get<string>('auth.jwt.secret');
+        if (!secret) {
+          throw new Error('JWT secret is not configured. Set a strong JWT_SECRET (>= 32 chars).');
+        }
+        return {
+          secret,
+          signOptions: {
+            expiresIn: configService.get<number>('auth.jwt.accessExpiration', 900),
+          },
+        };
+      },
     }),
     EmailModule,
   ],

@@ -38,6 +38,27 @@ describe('Cookie Utilities', () => {
       });
     });
 
+    it('should force secure=true in production even when cookie.secure is false', () => {
+      configService.get.mockImplementation((key: string, defaultValue?: unknown) => {
+        const config: Record<string, unknown> = {
+          'app.nodeEnv': 'production',
+          'cookie.domain': '',
+          'cookie.secure': false,
+          'cookie.sameSite': 'strict',
+        };
+        return config[key] ?? defaultValue;
+      });
+
+      setRefreshTokenCookie(res as unknown as Response, configService as unknown as ConfigService, {
+        refreshToken: 'refresh',
+        refreshExpiresIn: 3600,
+      });
+
+      const calls = res.cookie.mock.calls as unknown[][];
+      const cookieOptions = calls[0][2] as Record<string, unknown>;
+      expect(cookieOptions['secure']).toBe(true);
+    });
+
     it('should omit domain when empty', () => {
       configService.get.mockImplementation((key: string, defaultValue?: unknown) => {
         const config: Record<string, unknown> = {
@@ -73,6 +94,24 @@ describe('Cookie Utilities', () => {
         domain: 'example.com',
         path: '/api/auth/refresh',
       });
+    });
+
+    it('should force secure=true in production even when cookie.secure is false', () => {
+      configService.get.mockImplementation((key: string, defaultValue?: unknown) => {
+        const config: Record<string, unknown> = {
+          'app.nodeEnv': 'production',
+          'cookie.domain': '',
+          'cookie.secure': false,
+          'cookie.sameSite': 'strict',
+        };
+        return config[key] ?? defaultValue;
+      });
+
+      clearRefreshTokenCookie(res as unknown as Response, configService as unknown as ConfigService);
+
+      const calls = res.clearCookie.mock.calls as unknown[][];
+      const cookieOptions = calls[0][1] as Record<string, unknown>;
+      expect(cookieOptions['secure']).toBe(true);
     });
   });
 });

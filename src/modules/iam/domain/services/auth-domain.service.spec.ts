@@ -182,6 +182,15 @@ describe('AuthDomainService', () => {
       await expect(service.login('wrong@example.com', 'password', 604800)).rejects.toThrow(InvalidCredentialsException);
     });
 
+    it('should run a dummy password comparison when the user is not found (timing equalization)', async () => {
+      userRepository.findByEmail.mockResolvedValue(null);
+      passwordHasher.compare.mockResolvedValue(false);
+
+      await expect(service.login('ghost@example.com', 'password', 604800)).rejects.toThrow(InvalidCredentialsException);
+      // bcrypt comparison must still run on the not-found path to avoid a timing oracle.
+      expect(passwordHasher.compare).toHaveBeenCalledTimes(1);
+    });
+
     it('should throw on wrong password', async () => {
       userRepository.findByEmail.mockResolvedValue(mockUser);
       passwordHasher.compare.mockResolvedValue(false);

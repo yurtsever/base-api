@@ -31,6 +31,11 @@ import { OAuthException } from '../exceptions/oauth.exception';
 import { OAuthAccountExistsException } from '../exceptions/oauth-account-exists.exception';
 import { OAuthAccountAlreadyLinkedException } from '../exceptions/oauth-account-already-linked.exception';
 
+// A valid bcrypt hash of a throwaway value, used to equalize login timing on the
+// user-not-found path so an attacker cannot distinguish existing from non-existing
+// accounts by measuring whether a bcrypt comparison ran (user enumeration defense).
+const DUMMY_PASSWORD_HASH = '$2b$12$oB77hXMxU02rEAE79H0x1OiV9F55DXlG4S22seMCTcbhrEIDl2Xwi';
+
 @Injectable()
 export class AuthDomainService {
   constructor(
@@ -79,6 +84,9 @@ export class AuthDomainService {
   ): Promise<{ user: User; tokens: TokenPair }> {
     const user = await this.userRepository.findByEmail(email.toLowerCase().trim());
     if (!user) {
+      // Run a dummy bcrypt comparison so the not-found path costs roughly the same
+      // as a real password check, closing the timing-based user-enumeration oracle.
+      await this.passwordHasher.compare(password, DUMMY_PASSWORD_HASH);
       throw new InvalidCredentialsException();
     }
 

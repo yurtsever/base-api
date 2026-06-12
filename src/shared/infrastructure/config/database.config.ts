@@ -1,18 +1,44 @@
+import { existsSync, readFileSync } from 'fs';
 import { ConfigService } from '@nestjs/config';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { DataSource, DataSourceOptions } from 'typeorm';
+
+/**
+ * Resolve a CA bundle from DATABASE_SSL_CA, which may be either a path to a PEM
+ * file or an inline PEM string. Returns undefined when not configured.
+ */
+const readSslCa = (value?: string): string | undefined => {
+  if (!value) {
+    return undefined;
+  }
+  if (value.includes('-----BEGIN')) {
+    return value;
+  }
+  return existsSync(value) ? readFileSync(value, 'utf8') : undefined;
+};
 
 export const createDatabaseConfig = (configService: ConfigService): TypeOrmModuleOptions => {
   const nodeEnv = configService.get<string>('app.nodeEnv', 'development');
   const databaseUrl = configService.get<string>('database.url');
 
+  const isProduction = nodeEnv === 'production';
+
+  // In production, verify the server certificate (reject self-signed / MITM certs).
+  // An optional CA bundle (PEM string or file path) can be supplied via DATABASE_SSL_CA
+  // for providers that use a private/managed CA.
+  const productionSsl = (): boolean | { rejectUnauthorized: boolean; ca?: string } => {
+    const ca = readSslCa(process.env.DATABASE_SSL_CA);
+    return ca ? { rejectUnauthorized: true, ca } : { rejectUnauthorized: true };
+  };
+
   const baseConfig: TypeOrmModuleOptions = {
     type: 'postgres',
     entities: [__dirname + '/../**/*.entity{.ts,.js}', __dirname + '/../../../modules/**/*.entity{.ts,.js}'],
     migrations: [__dirname + '/../database/migrations/*{.ts,.js}'],
-    synchronize: configService.get<boolean>('database.synchronize', false),
+    // Never allow destructive schema sync in production, regardless of env configuration.
+    synchronize: isProduction ? false : configService.get<boolean>('database.synchronize', false),
     logging: configService.get<boolean>('database.logging', false),
-    ssl: nodeEnv === 'production' ? { rejectUnauthorized: false } : configService.get<boolean>('database.ssl', false),
+    ssl: isProduction ? productionSsl() : configService.get<boolean>('database.ssl', false),
     extra: {
       max: configService.get<number>('database.maxConnections', 10),
       min: configService.get<number>('database.minConnections', 2),

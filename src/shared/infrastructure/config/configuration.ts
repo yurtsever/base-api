@@ -122,7 +122,8 @@ export default (): Configuration => ({
   },
   auth: {
     jwt: {
-      secret: process.env.JWT_SECRET || 'default-dev-secret-change-me',
+      // Guaranteed present and >= 32 chars by env.validation (no insecure fallback).
+      secret: process.env.JWT_SECRET as string,
       accessExpiration: parseInt(process.env.JWT_ACCESS_EXPIRATION || '900', 10),
       refreshExpiration: parseInt(process.env.JWT_REFRESH_EXPIRATION || '604800', 10),
     },
