@@ -10,6 +10,7 @@ import { REQUEST_OTP_USE_CASE } from '../../application/ports/request-otp.use-ca
 import { VERIFY_OTP_USE_CASE } from '../../application/ports/verify-otp.use-case';
 import { OAUTH_LOGIN_USE_CASE } from '../../application/ports/oauth-login.use-case';
 import { GET_OAUTH_URL_USE_CASE } from '../../application/ports/get-oauth-url.use-case';
+import { LINK_OAUTH_ACCOUNT_USE_CASE } from '../../application/ports/link-oauth-account.use-case';
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -21,6 +22,7 @@ describe('AuthController', () => {
   let verifyOtpUseCase: { execute: jest.Mock };
   let getOAuthUrlUseCase: { execute: jest.Mock };
   let oauthLoginUseCase: { execute: jest.Mock };
+  let linkOAuthAccountUseCase: { execute: jest.Mock };
   let mockRes: Partial<Response>;
   let mockConfigService: Partial<ConfigService>;
 
@@ -45,6 +47,7 @@ describe('AuthController', () => {
     verifyOtpUseCase = { execute: jest.fn() };
     getOAuthUrlUseCase = { execute: jest.fn() };
     oauthLoginUseCase = { execute: jest.fn() };
+    linkOAuthAccountUseCase = { execute: jest.fn() };
     mockRes = { cookie: jest.fn(), clearCookie: jest.fn() } as Partial<Response>;
     mockConfigService = {
       get: jest.fn((key: string, defaultValue?: unknown) => {
@@ -69,6 +72,7 @@ describe('AuthController', () => {
         { provide: VERIFY_OTP_USE_CASE, useValue: verifyOtpUseCase },
         { provide: GET_OAUTH_URL_USE_CASE, useValue: getOAuthUrlUseCase },
         { provide: OAUTH_LOGIN_USE_CASE, useValue: oauthLoginUseCase },
+        { provide: LINK_OAUTH_ACCOUNT_USE_CASE, useValue: linkOAuthAccountUseCase },
         { provide: ConfigService, useValue: mockConfigService },
       ],
     }).compile();
@@ -226,6 +230,35 @@ describe('AuthController', () => {
 
       expect(getOAuthUrlUseCase.execute).toHaveBeenCalledWith('google', 'http://localhost:3000/callback');
       expect(result).toEqual(expected);
+    });
+  });
+
+  describe('getOAuthLinkUrl', () => {
+    it('should issue a state bound to the authenticated user', async () => {
+      const expected = { url: 'https://accounts.google.com/o/oauth2/v2/auth?...', state: 'bound-state' };
+      getOAuthUrlUseCase.execute.mockResolvedValue(expected);
+
+      const result = await controller.getOAuthLinkUrl(
+        { sub: 'user-id', email: 'u@e.com', roles: [] },
+        'google',
+        'http://localhost:3000/callback',
+      );
+
+      expect(getOAuthUrlUseCase.execute).toHaveBeenCalledWith('google', 'http://localhost:3000/callback', 'user-id');
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('linkOAuth', () => {
+    it('should pass the current user id and dto to the link use case', async () => {
+      const linked = { provider: 'google', providerUserId: 'goog-123', email: 'u@e.com' };
+      linkOAuthAccountUseCase.execute.mockResolvedValue(linked);
+      const dto = { provider: 'google', code: 'auth-code', redirectUri: 'http://localhost:3000/callback', state: 's' };
+
+      const result = await controller.linkOAuth({ sub: 'user-id', email: 'u@e.com', roles: [] }, dto);
+
+      expect(linkOAuthAccountUseCase.execute).toHaveBeenCalledWith('user-id', dto);
+      expect(result).toEqual(linked);
     });
   });
 

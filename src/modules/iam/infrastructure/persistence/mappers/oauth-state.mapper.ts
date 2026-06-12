@@ -3,7 +3,7 @@ import { OAuthStateEntity } from '../entities/oauth-state.entity';
 
 export class OAuthStateMapper {
   static toDomain(entity: OAuthStateEntity): OAuthState {
-    return new OAuthState(entity.id, entity.state, entity.provider, entity.expiresAt, entity.createdAt);
+    return new OAuthState(entity.id, entity.state, entity.provider, entity.userId, entity.expiresAt, entity.createdAt);
   }
 
   static toEntity(domain: OAuthState): OAuthStateEntity {
@@ -13,6 +13,7 @@ export class OAuthStateMapper {
     }
     entity.state = domain.state;
     entity.provider = domain.provider;
+    entity.userId = domain.userId;
     entity.expiresAt = domain.expiresAt;
     return entity;
   }

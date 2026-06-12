@@ -16,16 +16,21 @@ export class GetOAuthUrlUseCase implements GetOAuthUrlUseCasePort {
     private readonly oauthStateRepository: OAuthStateRepositoryPort,
   ) {}
 
-  async execute(provider: string, redirectUri: string): Promise<{ url: string; state: string }> {
+  async execute(
+    provider: string,
+    redirectUri: string,
+    userId: string | null = null,
+  ): Promise<{ url: string; state: string }> {
     const providerVO = OAuthProvider.create(provider);
     assertAllowedRedirectUri(this.configService.get<string[]>('oauth.allowedRedirectUris', []), redirectUri);
 
     const state = randomBytes(32).toString('hex');
 
     // Persist the state server-side so the callback can verify it (CSRF defense).
+    // For linking, bind it to the initiating user so it can't be redeemed by anyone else.
     const ttlSeconds = this.configService.get<number>('oauth.stateExpiration', 600);
     await this.oauthStateRepository.save(
-      new OAuthState(randomUUID(), state, providerVO.value, new Date(Date.now() + ttlSeconds * 1000)),
+      new OAuthState(randomUUID(), state, providerVO.value, userId, new Date(Date.now() + ttlSeconds * 1000)),
     );
 
     switch (providerVO.value) {

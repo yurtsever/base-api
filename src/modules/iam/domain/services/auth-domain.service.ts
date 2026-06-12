@@ -29,6 +29,7 @@ import { TokenExpiredException } from '../exceptions/token-expired.exception';
 import { InvalidOtpException } from '../exceptions/invalid-otp.exception';
 import { OAuthException } from '../exceptions/oauth.exception';
 import { OAuthAccountExistsException } from '../exceptions/oauth-account-exists.exception';
+import { OAuthAccountAlreadyLinkedException } from '../exceptions/oauth-account-already-linked.exception';
 
 @Injectable()
 export class AuthDomainService {
@@ -357,5 +358,54 @@ export class AuthDomainService {
     await this.refreshTokenRepository.save(refreshToken);
 
     return { user, tokens, isNewUser };
+  }
+
+  /**
+   * Links an OAuth provider identity to an already-authenticated user's account.
+   * The caller (use case) is responsible for verifying the OAuth state is bound to this
+   * same user — that, plus matching on the provider identity (never the email), is what
+   * makes linking safe: an email is not proof of ownership, but an authenticated session is.
+   */
+  async linkOAuthAccount(userId: string, provider: string, code: string, redirectUri: string): Promise<OAuthAccount> {
+    const providerVO = OAuthProvider.create(provider);
+
+    const user = await this.userRepository.findById(userId);
+    if (!user || !user.isActive) {
+      throw new InvalidCredentialsException('Account is deactivated');
+    }
+
+    let profile;
+    try {
+      profile = await this.oauthProvider.getProfile(providerVO.value, code, redirectUri);
+    } catch (error) {
+      if (error instanceof OAuthException) throw error;
+      throw new OAuthException('Failed to exchange OAuth code for profile');
+    }
+
+    if (!profile.email) {
+      throw new OAuthException('OAuth provider did not return an email address');
+    }
+    if (!profile.emailVerified) {
+      throw new OAuthException('The email address from this OAuth provider is not verified.');
+    }
+
+    // The provider identity (not the email) is the link key. Refuse if it is already
+    // linked anywhere — a provider identity belongs to exactly one local account.
+    const existingLink = await this.oauthAccountRepository.findByProviderAndProviderUserId(
+      providerVO.value,
+      profile.providerUserId,
+    );
+    if (existingLink) {
+      throw new OAuthAccountAlreadyLinkedException();
+    }
+
+    const oauthAccount = new OAuthAccount(
+      randomUUID(),
+      userId,
+      providerVO.value,
+      profile.providerUserId,
+      profile.email.toLowerCase().trim(),
+    );
+    return this.oauthAccountRepository.save(oauthAccount);
   }
 }

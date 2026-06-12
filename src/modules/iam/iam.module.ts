@@ -37,6 +37,7 @@ import { REQUEST_OTP_USE_CASE } from './application/ports/request-otp.use-case';
 import { VERIFY_OTP_USE_CASE } from './application/ports/verify-otp.use-case';
 import { OAUTH_LOGIN_USE_CASE } from './application/ports/oauth-login.use-case';
 import { GET_OAUTH_URL_USE_CASE } from './application/ports/get-oauth-url.use-case';
+import { LINK_OAUTH_ACCOUNT_USE_CASE } from './application/ports/link-oauth-account.use-case';
 import { CREATE_API_KEY_USE_CASE } from './application/ports/create-api-key.use-case';
 import { LIST_API_KEYS_USE_CASE } from './application/ports/list-api-keys.use-case';
 import { REVOKE_API_KEY_USE_CASE } from './application/ports/revoke-api-key.use-case';
@@ -54,6 +55,7 @@ import { RequestOtpUseCase } from './application/use-cases/request-otp.use-case'
 import { VerifyOtpUseCase } from './application/use-cases/verify-otp.use-case';
 import { OAuthLoginUseCase } from './application/use-cases/oauth-login.use-case';
 import { GetOAuthUrlUseCase } from './application/use-cases/get-oauth-url.use-case';
+import { LinkOAuthAccountUseCase } from './application/use-cases/link-oauth-account.use-case';
 import { CreateApiKeyUseCase } from './application/use-cases/create-api-key.use-case';
 import { ListApiKeysUseCase } from './application/use-cases/list-api-keys.use-case';
 import { RevokeApiKeyUseCase } from './application/use-cases/revoke-api-key.use-case';
@@ -186,6 +188,7 @@ import { ApiKeyController } from './infrastructure/controllers/api-key.controlle
     { provide: VERIFY_OTP_USE_CASE, useClass: VerifyOtpUseCase },
     { provide: OAUTH_LOGIN_USE_CASE, useClass: OAuthLoginUseCase },
     { provide: GET_OAUTH_URL_USE_CASE, useClass: GetOAuthUrlUseCase },
+    { provide: LINK_OAUTH_ACCOUNT_USE_CASE, useClass: LinkOAuthAccountUseCase },
     { provide: CREATE_API_KEY_USE_CASE, useClass: CreateApiKeyUseCase },
     { provide: LIST_API_KEYS_USE_CASE, useClass: ListApiKeysUseCase },
     { provide: REVOKE_API_KEY_USE_CASE, useClass: RevokeApiKeyUseCase },

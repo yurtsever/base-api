@@ -3,6 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { Public } from '../decorators/public.decorator';
+import { CurrentUser } from '../decorators/current-user.decorator';
+import type { JwtPayload } from '../strategies/jwt.strategy';
 import { RegisterDto } from '../../application/dtos/register.dto';
 import { LoginDto } from '../../application/dtos/login.dto';
 import { RefreshTokenDto } from '../../application/dtos/refresh-token.dto';
@@ -26,6 +28,9 @@ import type { OAuthLoginUseCasePort } from '../../application/ports/oauth-login.
 import { OAUTH_LOGIN_USE_CASE } from '../../application/ports/oauth-login.use-case';
 import type { GetOAuthUrlUseCasePort } from '../../application/ports/get-oauth-url.use-case';
 import { GET_OAUTH_URL_USE_CASE } from '../../application/ports/get-oauth-url.use-case';
+import { LinkOAuthAccountDto } from '../../application/dtos/link-oauth-account.dto';
+import type { LinkOAuthAccountUseCasePort } from '../../application/ports/link-oauth-account.use-case';
+import { LINK_OAUTH_ACCOUNT_USE_CASE } from '../../application/ports/link-oauth-account.use-case';
 import { setRefreshTokenCookie, clearRefreshTokenCookie } from '../utils/cookie.util';
 
 @ApiTags('auth')
@@ -48,6 +53,8 @@ export class AuthController {
     private readonly getOAuthUrlUseCase: GetOAuthUrlUseCasePort,
     @Inject(OAUTH_LOGIN_USE_CASE)
     private readonly oauthLoginUseCase: OAuthLoginUseCasePort,
+    @Inject(LINK_OAUTH_ACCOUNT_USE_CASE)
+    private readonly linkOAuthAccountUseCase: LinkOAuthAccountUseCasePort,
     private readonly configService: ConfigService,
   ) {}
 
@@ -168,6 +175,25 @@ export class AuthController {
     @Query('redirectUri') redirectUri: string,
   ): Promise<{ url: string; state: string }> {
     return this.getOAuthUrlUseCase.execute(provider, redirectUri);
+  }
+
+  @Get('oauth/:provider/link-url')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get an OAuth authorization URL to link a provider to your account' })
+  async getOAuthLinkUrl(
+    @CurrentUser() user: JwtPayload,
+    @Param('provider') provider: string,
+    @Query('redirectUri') redirectUri: string,
+  ): Promise<{ url: string; state: string }> {
+    return this.getOAuthUrlUseCase.execute(provider, redirectUri, user.sub);
+  }
+
+  @Post('oauth/link')
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Link an OAuth provider to your authenticated account' })
+  async linkOAuth(@CurrentUser() user: JwtPayload, @Body() dto: LinkOAuthAccountDto) {
+    return this.linkOAuthAccountUseCase.execute(user.sub, dto);
   }
 
   @Post('oauth/callback')
