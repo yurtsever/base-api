@@ -1,6 +1,7 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Inject, Param, Post, Query, Req, Res } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { Public } from '../decorators/public.decorator';
 import { CurrentUser } from '../decorators/current-user.decorator';
@@ -33,6 +34,11 @@ import type { LinkOAuthAccountUseCasePort } from '../../application/ports/link-o
 import { LINK_OAUTH_ACCOUNT_USE_CASE } from '../../application/ports/link-oauth-account.use-case';
 import { setRefreshTokenCookie, clearRefreshTokenCookie } from '../utils/cookie.util';
 
+// Tight per-endpoint throttle for sensitive auth flows: 5 requests / 60s.
+// This is stricter than the global default and caps brute-force on credentials/OTP.
+// NOTE: correct client-IP keying behind a reverse proxy requires Express `trust proxy`.
+const SENSITIVE_AUTH_THROTTLE = { default: { limit: 5, ttl: 60000 } };
+
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
@@ -60,6 +66,7 @@ export class AuthController {
 
   @Post('register')
   @Public()
+  @Throttle(SENSITIVE_AUTH_THROTTLE)
   @ApiOperation({ summary: 'Register a new user' })
   async register(@Body() dto: RegisterDto, @Res({ passthrough: true }) res: Response): Promise<AuthCookieResponse> {
     const result = await this.registerUseCase.execute(dto);
@@ -79,6 +86,7 @@ export class AuthController {
 
   @Post('login')
   @Public()
+  @Throttle(SENSITIVE_AUTH_THROTTLE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login with email and password' })
   async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response): Promise<AuthCookieResponse> {
@@ -115,6 +123,7 @@ export class AuthController {
 
   @Post('refresh')
   @Public()
+  @Throttle(SENSITIVE_AUTH_THROTTLE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Refresh access token' })
   async refresh(
@@ -141,6 +150,7 @@ export class AuthController {
 
   @Post('otp/request')
   @Public()
+  @Throttle(SENSITIVE_AUTH_THROTTLE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Request a one-time password via email' })
   async requestOtp(@Body() dto: RequestOtpDto): Promise<{ message: string }> {
@@ -149,6 +159,7 @@ export class AuthController {
 
   @Post('otp/verify')
   @Public()
+  @Throttle(SENSITIVE_AUTH_THROTTLE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Verify OTP and authenticate' })
   async verifyOtp(@Body() dto: VerifyOtpDto, @Res({ passthrough: true }) res: Response): Promise<AuthCookieResponse> {

@@ -4,7 +4,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { LoggerModule } from 'nestjs-pino';
 import { ScheduleModule } from '@nestjs/schedule';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -60,6 +60,13 @@ import { RolesGuard } from './modules/iam/infrastructure/guards/roles.guard';
   controllers: [AppController],
   providers: [
     AppService,
+    // Rate limiting runs first so brute-force attempts are rejected before auth work.
+    // NOTE: behind a reverse proxy, Express `trust proxy` must be enabled (see main.ts)
+    // so the throttler keys on the real client IP and not the proxy address.
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
     {
       provide: APP_GUARD,
       useExisting: JwtAuthGuard,
