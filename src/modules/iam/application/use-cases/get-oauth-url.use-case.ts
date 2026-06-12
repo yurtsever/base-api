@@ -1,18 +1,32 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { randomBytes } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 import { OAuthProvider } from '../../domain/value-objects/oauth-provider.value-object';
+import { OAuthState } from '../../domain/models/oauth-state.model';
+import type { OAuthStateRepositoryPort } from '../../domain/ports/oauth-state-repository.port';
+import { OAUTH_STATE_REPOSITORY_PORT } from '../../domain/ports/oauth-state-repository.port';
 import type { GetOAuthUrlUseCasePort } from '../ports/get-oauth-url.use-case';
 import { assertAllowedRedirectUri } from '../utils/redirect-uri.validator';
 
 @Injectable()
 export class GetOAuthUrlUseCase implements GetOAuthUrlUseCasePort {
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    @Inject(OAUTH_STATE_REPOSITORY_PORT)
+    private readonly oauthStateRepository: OAuthStateRepositoryPort,
+  ) {}
 
-  execute(provider: string, redirectUri: string): { url: string; state: string } {
+  async execute(provider: string, redirectUri: string): Promise<{ url: string; state: string }> {
     const providerVO = OAuthProvider.create(provider);
     assertAllowedRedirectUri(this.configService.get<string[]>('oauth.allowedRedirectUris', []), redirectUri);
+
     const state = randomBytes(32).toString('hex');
+
+    // Persist the state server-side so the callback can verify it (CSRF defense).
+    const ttlSeconds = this.configService.get<number>('oauth.stateExpiration', 600);
+    await this.oauthStateRepository.save(
+      new OAuthState(randomUUID(), state, providerVO.value, new Date(Date.now() + ttlSeconds * 1000)),
+    );
 
     switch (providerVO.value) {
       case 'google':

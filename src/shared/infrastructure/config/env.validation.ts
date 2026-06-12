@@ -194,6 +194,12 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   OAUTH_ALLOWED_REDIRECT_URIS?: string;
+
+  // Lifetime (seconds) of a single-use OAuth CSRF state token
+  @IsNumber()
+  @Min(60)
+  @IsOptional()
+  OAUTH_STATE_EXPIRATION: number = 600;
 }
 
 export function validate(config: Record<string, unknown>) {

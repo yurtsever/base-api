@@ -163,10 +163,10 @@ export class AuthController {
   @Get('oauth/:provider/url')
   @Public()
   @ApiOperation({ summary: 'Get OAuth authorization URL for a provider' })
-  getOAuthUrl(
+  async getOAuthUrl(
     @Param('provider') provider: string,
     @Query('redirectUri') redirectUri: string,
-  ): { url: string; state: string } {
+  ): Promise<{ url: string; state: string }> {
     return this.getOAuthUrlUseCase.execute(provider, redirectUri);
   }
 

@@ -74,6 +74,8 @@ export interface OAuthConfig {
   github: OAuthProviderConfig;
   /** Exact-match allowlist of permitted OAuth redirect URIs (open-redirect defense). */
   allowedRedirectUris: string[];
+  /** Lifetime in seconds of a single-use OAuth CSRF state token. */
+  stateExpiration: number;
 }
 
 export interface Configuration {
@@ -160,5 +162,6 @@ export default (): Configuration => ({
       process.env.OAUTH_ALLOWED_REDIRECT_URIS?.split(',')
         .map((uri) => uri.trim())
         .filter(Boolean) || [],
+    stateExpiration: parseInt(process.env.OAUTH_STATE_EXPIRATION || '600', 10),
   },
 });
