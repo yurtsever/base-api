@@ -46,7 +46,16 @@ export class PermissionsGuard implements CanActivate {
 
     const hasAllPermissions = requiredPermissions.every((perm) => {
       const [resource, action] = perm.split(':');
-      return user.hasPermission(resource, action);
+      if (!user.hasPermission(resource, action)) {
+        return false;
+      }
+      // API keys are additionally bounded by their declared scopes: the effective
+      // permission is the intersection of the owner's permissions and the key's scopes.
+      // A key never inherits more than it was scoped to.
+      if (jwtPayload.isApiKey) {
+        return this.scopesGrant(jwtPayload.scopes ?? [], resource, action);
+      }
+      return true;
     });
 
     if (!hasAllPermissions) {
@@ -54,5 +63,14 @@ export class PermissionsGuard implements CanActivate {
     }
 
     return true;
+  }
+
+  /**
+   * Whether the API key's scopes grant `resource:action`.
+   * Supports an exact `resource:action` scope, a resource wildcard `resource:*`,
+   * and a global wildcard `*`. Anything else denies by default.
+   */
+  private scopesGrant(scopes: string[], resource: string, action: string): boolean {
+    return scopes.some((scope) => scope === '*' || scope === `${resource}:*` || scope === `${resource}:${action}`);
   }
 }

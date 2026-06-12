@@ -28,6 +28,7 @@ import { UserAlreadyExistsException } from '../exceptions/user-already-exists.ex
 import { TokenExpiredException } from '../exceptions/token-expired.exception';
 import { InvalidOtpException } from '../exceptions/invalid-otp.exception';
 import { OAuthException } from '../exceptions/oauth.exception';
+import { OAuthAccountExistsException } from '../exceptions/oauth-account-exists.exception';
 
 @Injectable()
 export class AuthDomainService {
@@ -286,19 +287,27 @@ export class AuthDomainService {
       }
       user = found;
     } else {
-      // No link — check if email matches existing user
+      // No existing link. We are about to use the email to find or create an account,
+      // so we must only trust a provider-verified address — an email is an identifier,
+      // not proof of ownership.
+      if (!profile.emailVerified) {
+        throw new OAuthException('The email address from this OAuth provider is not verified.');
+      }
+
       const existingUser = await this.userRepository.findByEmail(normalizedEmail);
       if (existingUser) {
-        user = existingUser;
-      } else {
-        // Create new user (like OTP flow — no password)
-        isNewUser = true;
-        const emailVO = Email.create(normalizedEmail);
-        const defaultRole = await this.roleRepository.findDefault();
-        const roles = defaultRole ? [defaultRole] : [];
-        user = new User(randomUUID(), emailVO, null, profile.firstName || '', profile.lastName || '', true, roles);
-        user = await this.userRepository.save(user);
+        // Refuse to silently adopt an existing local account. Linking must be done
+        // explicitly from an authenticated session to prove account ownership.
+        throw new OAuthAccountExistsException();
       }
+
+      // Create new user (like OTP flow — no password)
+      isNewUser = true;
+      const emailVO = Email.create(normalizedEmail);
+      const defaultRole = await this.roleRepository.findDefault();
+      const roles = defaultRole ? [defaultRole] : [];
+      user = new User(randomUUID(), emailVO, null, profile.firstName || '', profile.lastName || '', true, roles);
+      user = await this.userRepository.save(user);
 
       // Link OAuth account
       const oauthAccount = new OAuthAccount(

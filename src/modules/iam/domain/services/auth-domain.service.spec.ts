@@ -28,6 +28,7 @@ import { UserAlreadyExistsException } from '../exceptions/user-already-exists.ex
 import { TokenExpiredException } from '../exceptions/token-expired.exception';
 import { InvalidOtpException } from '../exceptions/invalid-otp.exception';
 import { OAuthException } from '../exceptions/oauth.exception';
+import { OAuthAccountExistsException } from '../exceptions/oauth-account-exists.exception';
 
 describe('AuthDomainService', () => {
   let service: AuthDomainService;
@@ -453,6 +454,7 @@ describe('AuthDomainService', () => {
     const mockProfile = {
       providerUserId: 'goog-123',
       email: 'user@gmail.com',
+      emailVerified: true,
       firstName: 'John',
       lastName: 'Doe',
     };
@@ -480,7 +482,7 @@ describe('AuthDomainService', () => {
       expect(oauthAccountRepository.save).not.toHaveBeenCalled();
     });
 
-    it('should link OAuth account to existing user with matching email', async () => {
+    it('should refuse to silently adopt an existing local account by email match', async () => {
       const existingUser = new User(
         'user-id',
         Email.create('user@gmail.com'),
@@ -494,15 +496,25 @@ describe('AuthDomainService', () => {
       oauthProvider.getProfile.mockResolvedValue(mockProfile);
       oauthAccountRepository.findByProviderAndProviderUserId.mockResolvedValue(null);
       userRepository.findByEmail.mockResolvedValue(existingUser);
-      oauthAccountRepository.save.mockImplementation((a: OAuthAccount) => Promise.resolve(a));
 
-      const result = await service.loginWithOAuth('google', 'auth-code', 'http://localhost/callback', 604800);
-
-      expect(result.user).toBe(existingUser);
-      expect(result.isNewUser).toBe(false);
-      expect(oauthAccountRepository.save).toHaveBeenCalledWith(
-        expect.objectContaining({ provider: 'google', providerUserId: 'goog-123' }),
+      await expect(service.loginWithOAuth('google', 'auth-code', 'http://localhost/callback', 604800)).rejects.toThrow(
+        OAuthAccountExistsException,
       );
+      // Must not create a link or mint tokens for the victim's account
+      expect(oauthAccountRepository.save).not.toHaveBeenCalled();
+      expect(refreshTokenRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('should refuse to create or link an account from an unverified provider email', async () => {
+      oauthProvider.getProfile.mockResolvedValue({ ...mockProfile, emailVerified: false });
+      oauthAccountRepository.findByProviderAndProviderUserId.mockResolvedValue(null);
+
+      await expect(service.loginWithOAuth('github', 'auth-code', 'http://localhost/callback', 604800)).rejects.toThrow(
+        OAuthException,
+      );
+      // The email must never be used to look up an existing account when unverified
+      expect(userRepository.findByEmail).not.toHaveBeenCalled();
+      expect(userRepository.save).not.toHaveBeenCalled();
     });
 
     it('should create new user when no existing account found', async () => {
