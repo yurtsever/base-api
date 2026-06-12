@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'crypto';
 import { OAuthProvider } from '../../domain/value-objects/oauth-provider.value-object';
 import type { GetOAuthUrlUseCasePort } from '../ports/get-oauth-url.use-case';
+import { assertAllowedRedirectUri } from '../utils/redirect-uri.validator';
 
 @Injectable()
 export class GetOAuthUrlUseCase implements GetOAuthUrlUseCasePort {
@@ -10,6 +11,7 @@ export class GetOAuthUrlUseCase implements GetOAuthUrlUseCasePort {
 
   execute(provider: string, redirectUri: string): { url: string; state: string } {
     const providerVO = OAuthProvider.create(provider);
+    assertAllowedRedirectUri(this.configService.get<string[]>('oauth.allowedRedirectUris', []), redirectUri);
     const state = randomBytes(32).toString('hex');
 
     switch (providerVO.value) {

@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { AuthDomainService } from '../../domain/services/auth-domain.service';
 import { OAuthCallbackDto } from '../dtos/oauth-callback.dto';
 import type { OAuthLoginUseCasePort } from '../ports/oauth-login.use-case';
+import { assertAllowedRedirectUri } from '../utils/redirect-uri.validator';
 
 @Injectable()
 export class OAuthLoginUseCase implements OAuthLoginUseCasePort {
@@ -12,6 +13,8 @@ export class OAuthLoginUseCase implements OAuthLoginUseCasePort {
   ) {}
 
   async execute(dto: OAuthCallbackDto) {
+    assertAllowedRedirectUri(this.configService.get<string[]>('oauth.allowedRedirectUris', []), dto.redirectUri);
+
     const refreshExpiration = this.configService.get<number>('auth.jwt.refreshExpiration', 604800);
 
     const { user, tokens, isNewUser } = await this.authDomainService.loginWithOAuth(

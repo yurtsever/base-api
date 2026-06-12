@@ -189,6 +189,11 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   OAUTH_GITHUB_CLIENT_SECRET: string = '';
+
+  // Comma-separated exact-match allowlist of permitted OAuth redirect URIs
+  @IsString()
+  @IsOptional()
+  OAUTH_ALLOWED_REDIRECT_URIS?: string;
 }
 
 export function validate(config: Record<string, unknown>) {
