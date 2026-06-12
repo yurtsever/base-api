@@ -397,6 +397,7 @@ See `.env.example` for all available options:
 | `NODE_ENV`       | Environment (development/production/test) | `development`           |
 | `PORT`           | Server port                               | `3000`                  |
 | `DATABASE_URL`   | PostgreSQL connection string              | —                       |
+| `DATABASE_SSL_CA`| Optional DB TLS CA bundle (PEM or path)   | —                       |
 | `JWT_SECRET`     | JWT signing secret                        | —                       |
 | `LOG_LEVEL`      | Log level (debug/info/warn/error)         | `info`                  |
 | `CORS_ORIGINS`   | Allowed CORS origins (comma-separated)    | `http://localhost:3000` |

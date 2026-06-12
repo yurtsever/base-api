@@ -60,6 +60,10 @@ class EnvironmentVariables {
   @IsOptional()
   DATABASE_SSL: boolean = false;
 
+  @IsString()
+  @IsOptional()
+  DATABASE_SSL_CA?: string;
+
   @IsNumber()
   @Min(1)
   @Max(100)

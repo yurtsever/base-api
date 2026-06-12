@@ -21,4 +21,8 @@ describe('env.validation', () => {
     expect('default-dev-secret-change-me'.length).toBeLessThan(32);
     expect(() => validate({ JWT_SECRET: 'default-dev-secret-change-me' })).toThrow(/JWT_SECRET/);
   });
+
+  it('allows DATABASE_SSL_CA to be provided as an optional string', () => {
+    expect(() => validate({ JWT_SECRET: STRONG_SECRET, DATABASE_SSL_CA: '/etc/ssl/private/ca.pem' })).not.toThrow();
+  });
 });
