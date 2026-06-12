@@ -61,6 +61,7 @@ export class OAuthProviderAdapter implements OAuthProviderPort {
     const profile = (await userResponse.json()) as {
       id?: string;
       email?: string;
+      verified_email?: boolean;
       given_name?: string;
       family_name?: string;
     };
@@ -72,6 +73,7 @@ export class OAuthProviderAdapter implements OAuthProviderPort {
     return {
       providerUserId: profile.id,
       email: profile.email,
+      emailVerified: profile.verified_email === true,
       firstName: profile.given_name || '',
       lastName: profile.family_name || '',
     };
@@ -125,7 +127,6 @@ export class OAuthProviderAdapter implements OAuthProviderPort {
 
     const profile = (await userResponse.json()) as {
       id?: number;
-      email?: string | null;
       name?: string;
       login?: string;
     };
@@ -134,18 +135,11 @@ export class OAuthProviderAdapter implements OAuthProviderPort {
       throw new OAuthException('GitHub profile is missing required fields');
     }
 
-    // GitHub may not return email in profile — fetch from /user/emails
-    let email = profile.email;
-    if (!email) {
-      const emailResult = await this.getGitHubEmails(accessToken);
-      email = emailResult.email;
-
-      if (!email) {
-        throw new OAuthException(
-          `Could not retrieve email from GitHub. /user returned email=${String(profile.email)}. ` +
-            `/user/emails returned: ${emailResult.debug}`,
-        );
-      }
+    // The /user `email` field carries no verification status, so it cannot be trusted.
+    // Always resolve the address (and its verified flag) from the authoritative /user/emails endpoint.
+    const resolved = await this.getGitHubEmail(accessToken);
+    if (!resolved.email) {
+      throw new OAuthException('Could not retrieve an email address from GitHub');
     }
 
     // Split name into first/last
@@ -155,13 +149,14 @@ export class OAuthProviderAdapter implements OAuthProviderPort {
 
     return {
       providerUserId: String(profile.id),
-      email,
+      email: resolved.email,
+      emailVerified: resolved.verified,
       firstName,
       lastName,
     };
   }
 
-  private async getGitHubEmails(accessToken: string): Promise<{ email: string | null; debug: string }> {
+  private async getGitHubEmail(accessToken: string): Promise<{ email: string | null; verified: boolean }> {
     const emailResponse = await fetch('https://api.github.com/user/emails', {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -170,8 +165,9 @@ export class OAuthProviderAdapter implements OAuthProviderPort {
     });
 
     if (!emailResponse.ok) {
-      const body = await emailResponse.text();
-      return { email: null, debug: `status=${emailResponse.status} body=${body}` };
+      // Detail (status/body) is intentionally not surfaced to the client; the generic
+      // OAuthException upstream avoids leaking the user's email set or provider internals.
+      return { email: null, verified: false };
     }
 
     const emails = (await emailResponse.json()) as Array<{
@@ -181,16 +177,19 @@ export class OAuthProviderAdapter implements OAuthProviderPort {
     }>;
 
     if (!emails || emails.length === 0) {
-      return { email: null, debug: 'empty array' };
+      return { email: null, verified: false };
     }
 
-    // Try primary + verified first, then any verified, then any email
+    // Prefer the primary verified address, then any verified address.
     const primaryVerified = emails.find((e) => e.primary && e.verified);
-    if (primaryVerified) return { email: primaryVerified.email, debug: '' };
+    if (primaryVerified) return { email: primaryVerified.email, verified: true };
 
     const anyVerified = emails.find((e) => e.verified);
-    if (anyVerified) return { email: anyVerified.email, debug: '' };
+    if (anyVerified) return { email: anyVerified.email, verified: true };
 
-    return { email: emails[0]?.email || null, debug: JSON.stringify(emails) };
+    // No verified address. Surface the primary (or first) address but flag it unverified
+    // so the domain layer refuses to find-or-create an account from it.
+    const primary = emails.find((e) => e.primary) ?? emails[0];
+    return { email: primary?.email ?? null, verified: false };
   }
 }

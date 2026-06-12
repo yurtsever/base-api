@@ -46,6 +46,7 @@ describe('OAuthProviderAdapter', () => {
           Promise.resolve({
             id: 'goog-123',
             email: 'user@gmail.com',
+            verified_email: true,
             given_name: 'John',
             family_name: 'Doe',
           }),
@@ -56,10 +57,33 @@ describe('OAuthProviderAdapter', () => {
       expect(profile).toEqual({
         providerUserId: 'goog-123',
         email: 'user@gmail.com',
+        emailVerified: true,
         firstName: 'John',
         lastName: 'Doe',
       });
       expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('should mark email unverified when Google reports verified_email=false', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ access_token: 'google-access-token' }),
+      });
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            id: 'goog-123',
+            email: 'user@gmail.com',
+            verified_email: false,
+            given_name: 'John',
+            family_name: 'Doe',
+          }),
+      });
+
+      const profile = await adapter.getProfile('google', 'auth-code', 'http://localhost:3000/callback');
+
+      expect(profile.emailVerified).toBe(false);
     });
 
     it('should throw when token exchange fails', async () => {
@@ -103,22 +127,26 @@ describe('OAuthProviderAdapter', () => {
   });
 
   describe('getProfile - GitHub', () => {
-    it('should exchange code and return profile', async () => {
+    it('should exchange code and return profile with the primary verified email', async () => {
       // Token exchange
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({ access_token: 'gh-access-token' }),
       });
-      // User info
+      // User info — the /user email is ignored; verification comes from /user/emails
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () =>
           Promise.resolve({
             id: 12345,
-            email: 'user@github.com',
             name: 'Jane Smith',
             login: 'janesmith',
           }),
+      });
+      // User emails
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve([{ email: 'user@github.com', primary: true, verified: true }]),
       });
 
       const profile = await adapter.getProfile('github', 'auth-code', 'http://localhost:3000/callback');
@@ -126,29 +154,22 @@ describe('OAuthProviderAdapter', () => {
       expect(profile).toEqual({
         providerUserId: '12345',
         email: 'user@github.com',
+        emailVerified: true,
         firstName: 'Jane',
         lastName: 'Smith',
       });
+      expect(mockFetch).toHaveBeenCalledTimes(3);
     });
 
-    it('should fetch email from /user/emails when not in profile', async () => {
-      // Token exchange
+    it('should prefer the primary verified email over a verified secondary', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({ access_token: 'gh-access-token' }),
       });
-      // User info (no email)
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () =>
-          Promise.resolve({
-            id: 12345,
-            email: null,
-            name: 'Jane',
-            login: 'janesmith',
-          }),
+        json: () => Promise.resolve({ id: 12345, name: 'Jane', login: 'janesmith' }),
       });
-      // User emails
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () =>
@@ -161,7 +182,29 @@ describe('OAuthProviderAdapter', () => {
       const profile = await adapter.getProfile('github', 'auth-code', 'http://localhost:3000/callback');
 
       expect(profile.email).toBe('primary@example.com');
+      expect(profile.emailVerified).toBe(true);
       expect(mockFetch).toHaveBeenCalledTimes(3);
+    });
+
+    it('should flag email unverified when no GitHub email is verified', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ access_token: 'gh-access-token' }),
+      });
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ id: 12345, name: 'Jane', login: 'janesmith' }),
+      });
+      // Attacker-controlled unverified address — must not be trusted
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve([{ email: 'victim@example.com', primary: true, verified: false }]),
+      });
+
+      const profile = await adapter.getProfile('github', 'auth-code', 'http://localhost:3000/callback');
+
+      expect(profile.email).toBe('victim@example.com');
+      expect(profile.emailVerified).toBe(false);
     });
 
     it('should throw when token exchange returns error', async () => {

@@ -218,11 +218,11 @@ describe('AuthController', () => {
   });
 
   describe('getOAuthUrl', () => {
-    it('should return authorization URL and state', () => {
+    it('should return authorization URL and state', async () => {
       const expected = { url: 'https://accounts.google.com/o/oauth2/v2/auth?...', state: 'random-state' };
-      getOAuthUrlUseCase.execute.mockReturnValue(expected);
+      getOAuthUrlUseCase.execute.mockResolvedValue(expected);
 
-      const result = controller.getOAuthUrl('google', 'http://localhost:3000/callback');
+      const result = await controller.getOAuthUrl('google', 'http://localhost:3000/callback');
 
       expect(getOAuthUrlUseCase.execute).toHaveBeenCalledWith('google', 'http://localhost:3000/callback');
       expect(result).toEqual(expected);
@@ -234,7 +234,7 @@ describe('AuthController', () => {
       const oauthResult = { ...authResult, isNewUser: true };
       oauthLoginUseCase.execute.mockResolvedValue(oauthResult);
 
-      const dto = { provider: 'google', code: 'auth-code', redirectUri: 'http://localhost:3000/callback' };
+      const dto = { provider: 'google', code: 'auth-code', redirectUri: 'http://localhost:3000/callback', state: 's' };
       const result = await controller.oauthCallback(dto, mockRes as Response);
 
       expect(oauthLoginUseCase.execute).toHaveBeenCalledWith(dto);
@@ -258,7 +258,7 @@ describe('AuthController', () => {
       const oauthResult = { ...authResult, isNewUser: false };
       oauthLoginUseCase.execute.mockResolvedValue(oauthResult);
 
-      const dto = { provider: 'github', code: 'auth-code', redirectUri: 'http://localhost:3000/callback' };
+      const dto = { provider: 'github', code: 'auth-code', redirectUri: 'http://localhost:3000/callback', state: 's' };
       const result = await controller.oauthCallback(dto, mockRes as Response);
 
       expect(result.isNewUser).toBe(false);

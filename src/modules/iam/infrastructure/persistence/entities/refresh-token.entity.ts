@@ -7,8 +7,12 @@ export class RefreshTokenEntity {
   id!: string;
 
   @Index()
-  @Column({ type: 'varchar', length: 500, unique: true })
-  token!: string;
+  @Column({ type: 'varchar', length: 64, unique: true, name: 'token_hash' })
+  tokenHash!: string;
+
+  @Index()
+  @Column({ type: 'uuid', name: 'family_id' })
+  familyId!: string;
 
   @Index()
   @Column({ type: 'uuid', name: 'user_id' })

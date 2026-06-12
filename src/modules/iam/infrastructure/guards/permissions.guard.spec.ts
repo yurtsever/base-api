@@ -80,4 +80,50 @@ describe('PermissionsGuard', () => {
       InsufficientPermissionsException,
     );
   });
+
+  describe('API key scopes', () => {
+    // Owner has full users:read AND users:delete permissions; the key's scopes must bound this.
+    const buildOwner = () => {
+      const role = new Role('r1', 'admin', 'Admin', false, [
+        new Permission('p1', 'users', 'read', 'Read users'),
+        new Permission('p2', 'users', 'delete', 'Delete users'),
+      ]);
+      return new User('user-id', Email.create('test@example.com'), Password.createFromHash('hash'), 'A', 'B', true, [
+        role,
+      ]);
+    };
+
+    it('should allow an API key whose scopes cover the required permission', async () => {
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValueOnce(false).mockReturnValueOnce(['users:read']);
+      userRepository.findById.mockResolvedValue(buildOwner());
+
+      const ctx = createContext({ sub: 'user-id', isApiKey: true, scopes: ['users:read'] });
+      expect(await guard.canActivate(ctx)).toBe(true);
+    });
+
+    it('should deny an API key lacking the scope even when the owner has the permission', async () => {
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValueOnce(false).mockReturnValueOnce(['users:delete']);
+      userRepository.findById.mockResolvedValue(buildOwner());
+
+      // Key is scoped to users:read only — must NOT inherit the owner's users:delete.
+      const ctx = createContext({ sub: 'user-id', isApiKey: true, scopes: ['users:read'] });
+      await expect(guard.canActivate(ctx)).rejects.toThrow(InsufficientPermissionsException);
+    });
+
+    it('should honor a resource wildcard scope', async () => {
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValueOnce(false).mockReturnValueOnce(['users:delete']);
+      userRepository.findById.mockResolvedValue(buildOwner());
+
+      const ctx = createContext({ sub: 'user-id', isApiKey: true, scopes: ['users:*'] });
+      expect(await guard.canActivate(ctx)).toBe(true);
+    });
+
+    it('should deny an API key with empty scopes', async () => {
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValueOnce(false).mockReturnValueOnce(['users:read']);
+      userRepository.findById.mockResolvedValue(buildOwner());
+
+      const ctx = createContext({ sub: 'user-id', isApiKey: true, scopes: [] });
+      await expect(guard.canActivate(ctx)).rejects.toThrow(InsufficientPermissionsException);
+    });
+  });
 });

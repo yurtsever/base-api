@@ -5,6 +5,7 @@ export interface RefreshTokenRepositoryPort {
   findByToken(token: string): Promise<RefreshToken | null>;
   revokeByToken(token: string): Promise<void>;
   revokeAllByUserId(userId: string): Promise<void>;
+  revokeFamily(familyId: string): Promise<void>;
   deleteExpired(): Promise<void>;
   rotateToken(oldTokenValue: string, newToken: RefreshToken): Promise<RefreshToken>;
 }

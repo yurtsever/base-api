@@ -72,6 +72,10 @@ export interface OAuthProviderConfig {
 export interface OAuthConfig {
   google: OAuthProviderConfig;
   github: OAuthProviderConfig;
+  /** Exact-match allowlist of permitted OAuth redirect URIs (open-redirect defense). */
+  allowedRedirectUris: string[];
+  /** Lifetime in seconds of a single-use OAuth CSRF state token. */
+  stateExpiration: number;
 }
 
 export interface Configuration {
@@ -154,5 +158,10 @@ export default (): Configuration => ({
       clientId: process.env.OAUTH_GITHUB_CLIENT_ID || '',
       clientSecret: process.env.OAUTH_GITHUB_CLIENT_SECRET || '',
     },
+    allowedRedirectUris:
+      process.env.OAUTH_ALLOWED_REDIRECT_URIS?.split(',')
+        .map((uri) => uri.trim())
+        .filter(Boolean) || [],
+    stateExpiration: parseInt(process.env.OAUTH_STATE_EXPIRATION || '600', 10),
   },
 });

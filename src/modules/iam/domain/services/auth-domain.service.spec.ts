@@ -28,6 +28,7 @@ import { UserAlreadyExistsException } from '../exceptions/user-already-exists.ex
 import { TokenExpiredException } from '../exceptions/token-expired.exception';
 import { InvalidOtpException } from '../exceptions/invalid-otp.exception';
 import { OAuthException } from '../exceptions/oauth.exception';
+import { OAuthAccountExistsException } from '../exceptions/oauth-account-exists.exception';
 
 describe('AuthDomainService', () => {
   let service: AuthDomainService;
@@ -55,6 +56,7 @@ describe('AuthDomainService', () => {
       findByToken: jest.fn(),
       revokeByToken: jest.fn(),
       revokeAllByUserId: jest.fn(),
+      revokeFamily: jest.fn(),
       deleteExpired: jest.fn(),
       rotateToken: jest.fn(),
     } as jest.Mocked<RefreshTokenRepositoryPort>;
@@ -227,6 +229,7 @@ describe('AuthDomainService', () => {
         'token-id',
         'old-refresh-token',
         'user-id',
+        'family-1',
         new Date(Date.now() + 60000),
         false,
       );
@@ -253,6 +256,9 @@ describe('AuthDomainService', () => {
 
       expect(result.tokens.accessToken).toBe('new-access-token');
       expect(refreshTokenRepository.rotateToken).toHaveBeenCalledWith('old-refresh-token', expect.any(RefreshToken));
+      // Rotation preserves the lineage
+      const rotated = refreshTokenRepository.rotateToken.mock.calls[0][1];
+      expect(rotated.familyId).toBe('family-1');
     });
 
     it('should throw on invalid token', async () => {
@@ -266,12 +272,29 @@ describe('AuthDomainService', () => {
         'token-id',
         'expired-token',
         'user-id',
+        'family-1',
         new Date(Date.now() - 1000), // expired
         false,
       );
       refreshTokenRepository.findByToken.mockResolvedValue(expiredToken);
 
       await expect(service.refreshTokens('expired-token', 604800)).rejects.toThrow(TokenExpiredException);
+    });
+
+    it('should detect reuse of a revoked token and revoke the whole family', async () => {
+      const revokedToken = new RefreshToken(
+        'token-id',
+        'rotated-token',
+        'user-id',
+        'family-1',
+        new Date(Date.now() + 60000), // not expired, but already rotated/revoked
+        true,
+      );
+      refreshTokenRepository.findByToken.mockResolvedValue(revokedToken);
+
+      await expect(service.refreshTokens('rotated-token', 604800)).rejects.toThrow(TokenExpiredException);
+      expect(refreshTokenRepository.revokeFamily).toHaveBeenCalledWith('family-1');
+      expect(refreshTokenRepository.rotateToken).not.toHaveBeenCalled();
     });
   });
 
@@ -453,6 +476,7 @@ describe('AuthDomainService', () => {
     const mockProfile = {
       providerUserId: 'goog-123',
       email: 'user@gmail.com',
+      emailVerified: true,
       firstName: 'John',
       lastName: 'Doe',
     };
@@ -480,7 +504,7 @@ describe('AuthDomainService', () => {
       expect(oauthAccountRepository.save).not.toHaveBeenCalled();
     });
 
-    it('should link OAuth account to existing user with matching email', async () => {
+    it('should refuse to silently adopt an existing local account by email match', async () => {
       const existingUser = new User(
         'user-id',
         Email.create('user@gmail.com'),
@@ -494,15 +518,25 @@ describe('AuthDomainService', () => {
       oauthProvider.getProfile.mockResolvedValue(mockProfile);
       oauthAccountRepository.findByProviderAndProviderUserId.mockResolvedValue(null);
       userRepository.findByEmail.mockResolvedValue(existingUser);
-      oauthAccountRepository.save.mockImplementation((a: OAuthAccount) => Promise.resolve(a));
 
-      const result = await service.loginWithOAuth('google', 'auth-code', 'http://localhost/callback', 604800);
-
-      expect(result.user).toBe(existingUser);
-      expect(result.isNewUser).toBe(false);
-      expect(oauthAccountRepository.save).toHaveBeenCalledWith(
-        expect.objectContaining({ provider: 'google', providerUserId: 'goog-123' }),
+      await expect(service.loginWithOAuth('google', 'auth-code', 'http://localhost/callback', 604800)).rejects.toThrow(
+        OAuthAccountExistsException,
       );
+      // Must not create a link or mint tokens for the victim's account
+      expect(oauthAccountRepository.save).not.toHaveBeenCalled();
+      expect(refreshTokenRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('should refuse to create or link an account from an unverified provider email', async () => {
+      oauthProvider.getProfile.mockResolvedValue({ ...mockProfile, emailVerified: false });
+      oauthAccountRepository.findByProviderAndProviderUserId.mockResolvedValue(null);
+
+      await expect(service.loginWithOAuth('github', 'auth-code', 'http://localhost/callback', 604800)).rejects.toThrow(
+        OAuthException,
+      );
+      // The email must never be used to look up an existing account when unverified
+      expect(userRepository.findByEmail).not.toHaveBeenCalled();
+      expect(userRepository.save).not.toHaveBeenCalled();
     });
 
     it('should create new user when no existing account found', async () => {

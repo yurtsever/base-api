@@ -19,6 +19,7 @@ import { TOKEN_GENERATOR_PORT } from './domain/ports/token-generator.port';
 import { ROLE_REPOSITORY_PORT } from './domain/ports/role-repository.port';
 import { OTP_REPOSITORY_PORT } from './domain/ports/otp-repository.port';
 import { OAUTH_ACCOUNT_REPOSITORY_PORT } from './domain/ports/oauth-account-repository.port';
+import { OAUTH_STATE_REPOSITORY_PORT } from './domain/ports/oauth-state-repository.port';
 import { OAUTH_PROVIDER_PORT } from './domain/ports/oauth-provider.port';
 import { API_KEY_REPOSITORY_PORT } from './domain/ports/api-key-repository.port';
 import { API_KEY_HASHER_PORT } from './domain/ports/api-key-hasher.port';
@@ -64,12 +65,14 @@ import { PermissionEntity } from './infrastructure/persistence/entities/permissi
 import { RefreshTokenEntity } from './infrastructure/persistence/entities/refresh-token.entity';
 import { OtpEntity } from './infrastructure/persistence/entities/otp.entity';
 import { OAuthAccountEntity } from './infrastructure/persistence/entities/oauth-account.entity';
+import { OAuthStateEntity } from './infrastructure/persistence/entities/oauth-state.entity';
 import { ApiKeyEntity } from './infrastructure/persistence/entities/api-key.entity';
 import { TypeOrmUserRepositoryAdapter } from './infrastructure/persistence/repositories/typeorm-user-repository.adapter';
 import { TypeOrmRefreshTokenRepositoryAdapter } from './infrastructure/persistence/repositories/typeorm-refresh-token-repository.adapter';
 import { TypeOrmRoleRepositoryAdapter } from './infrastructure/persistence/repositories/typeorm-role-repository.adapter';
 import { TypeOrmOtpRepositoryAdapter } from './infrastructure/persistence/repositories/typeorm-otp-repository.adapter';
 import { TypeOrmOAuthAccountRepositoryAdapter } from './infrastructure/persistence/repositories/typeorm-oauth-account-repository.adapter';
+import { TypeOrmOAuthStateRepositoryAdapter } from './infrastructure/persistence/repositories/typeorm-oauth-state-repository.adapter';
 import { TypeOrmApiKeyRepositoryAdapter } from './infrastructure/persistence/repositories/typeorm-api-key-repository.adapter';
 
 // Infrastructure - Adapters
@@ -87,6 +90,7 @@ import { PermissionsGuard } from './infrastructure/guards/permissions.guard';
 // Infrastructure - Tasks
 import { ExpiredTokenCleanupTask } from './infrastructure/tasks/expired-token-cleanup.task';
 import { ExpiredOtpCleanupTask } from './infrastructure/tasks/expired-otp-cleanup.task';
+import { ExpiredOAuthStateCleanupTask } from './infrastructure/tasks/expired-oauth-state-cleanup.task';
 
 // Controllers
 import { AuthController } from './infrastructure/controllers/auth.controller';
@@ -102,6 +106,7 @@ import { ApiKeyController } from './infrastructure/controllers/api-key.controlle
       RefreshTokenEntity,
       OtpEntity,
       OAuthAccountEntity,
+      OAuthStateEntity,
       ApiKeyEntity,
     ]),
     PassportModule.register({ defaultStrategy: 'jwt' }),
@@ -152,6 +157,10 @@ import { ApiKeyController } from './infrastructure/controllers/api-key.controlle
       useClass: TypeOrmOAuthAccountRepositoryAdapter,
     },
     {
+      provide: OAUTH_STATE_REPOSITORY_PORT,
+      useClass: TypeOrmOAuthStateRepositoryAdapter,
+    },
+    {
       provide: OAUTH_PROVIDER_PORT,
       useClass: OAuthProviderAdapter,
     },
@@ -184,6 +193,7 @@ import { ApiKeyController } from './infrastructure/controllers/api-key.controlle
     // Tasks
     ExpiredTokenCleanupTask,
     ExpiredOtpCleanupTask,
+    ExpiredOAuthStateCleanupTask,
 
     // Strategy & Guards
     JwtStrategy,
