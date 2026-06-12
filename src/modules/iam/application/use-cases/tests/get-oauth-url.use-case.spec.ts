@@ -70,6 +70,23 @@ describe('GetOAuthUrlUseCase', () => {
     });
   });
 
+  describe('Account linking', () => {
+    it('should bind the persisted state to the user when a userId is provided', async () => {
+      const result = await useCase.execute('google', 'http://localhost:3000/callback', 'user-id');
+
+      const saved = oauthStateRepository.save.mock.calls[0][0] as OAuthState;
+      expect(saved.state).toBe(result.state);
+      expect(saved.userId).toBe('user-id');
+    });
+
+    it('should leave the state unbound (null user) for the login flow', async () => {
+      await useCase.execute('google', 'http://localhost:3000/callback');
+
+      const saved = oauthStateRepository.save.mock.calls[0][0] as OAuthState;
+      expect(saved.userId).toBeNull();
+    });
+  });
+
   describe('Invalid provider', () => {
     it('should throw for unsupported provider', async () => {
       await expect(useCase.execute('facebook', 'http://localhost:3000/callback')).rejects.toThrow(

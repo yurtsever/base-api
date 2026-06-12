@@ -29,6 +29,7 @@ import { TokenExpiredException } from '../exceptions/token-expired.exception';
 import { InvalidOtpException } from '../exceptions/invalid-otp.exception';
 import { OAuthException } from '../exceptions/oauth.exception';
 import { OAuthAccountExistsException } from '../exceptions/oauth-account-exists.exception';
+import { OAuthAccountAlreadyLinkedException } from '../exceptions/oauth-account-already-linked.exception';
 
 describe('AuthDomainService', () => {
   let service: AuthDomainService;
@@ -602,6 +603,67 @@ describe('AuthDomainService', () => {
       await expect(service.loginWithOAuth('google', 'auth-code', 'http://localhost/callback', 604800)).rejects.toThrow(
         InvalidCredentialsException,
       );
+    });
+  });
+
+  describe('linkOAuthAccount', () => {
+    const mockProfile = {
+      providerUserId: 'goog-123',
+      email: 'user@gmail.com',
+      emailVerified: true,
+      firstName: 'John',
+      lastName: 'Doe',
+    };
+
+    const activeUser = () =>
+      new User('user-id', Email.create('user@gmail.com'), Password.createFromHash('hash'), 'John', 'Doe', true, []);
+
+    it('should link the provider identity to the authenticated user', async () => {
+      userRepository.findById.mockResolvedValue(activeUser());
+      oauthProvider.getProfile.mockResolvedValue(mockProfile);
+      oauthAccountRepository.findByProviderAndProviderUserId.mockResolvedValue(null);
+      oauthAccountRepository.save.mockImplementation((a: OAuthAccount) => Promise.resolve(a));
+
+      const result = await service.linkOAuthAccount('user-id', 'google', 'auth-code', 'http://localhost/callback');
+
+      expect(result.userId).toBe('user-id');
+      expect(result.provider).toBe('google');
+      expect(result.providerUserId).toBe('goog-123');
+      expect(oauthAccountRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'user-id', providerUserId: 'goog-123' }),
+      );
+    });
+
+    it('should refuse to link a provider identity already linked to an account', async () => {
+      userRepository.findById.mockResolvedValue(activeUser());
+      oauthProvider.getProfile.mockResolvedValue(mockProfile);
+      oauthAccountRepository.findByProviderAndProviderUserId.mockResolvedValue(
+        new OAuthAccount('acc-1', 'someone-else', 'google', 'goog-123', 'user@gmail.com'),
+      );
+
+      await expect(
+        service.linkOAuthAccount('user-id', 'google', 'auth-code', 'http://localhost/callback'),
+      ).rejects.toThrow(OAuthAccountAlreadyLinkedException);
+      expect(oauthAccountRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('should refuse to link an unverified provider email', async () => {
+      userRepository.findById.mockResolvedValue(activeUser());
+      oauthProvider.getProfile.mockResolvedValue({ ...mockProfile, emailVerified: false });
+
+      await expect(
+        service.linkOAuthAccount('user-id', 'google', 'auth-code', 'http://localhost/callback'),
+      ).rejects.toThrow(OAuthException);
+      expect(oauthAccountRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('should refuse when the user is not found or deactivated', async () => {
+      userRepository.findById.mockResolvedValue(null);
+
+      await expect(
+        service.linkOAuthAccount('user-id', 'google', 'auth-code', 'http://localhost/callback'),
+      ).rejects.toThrow(InvalidCredentialsException);
+      expect(oauthProvider.getProfile).not.toHaveBeenCalled();
     });
   });
 });

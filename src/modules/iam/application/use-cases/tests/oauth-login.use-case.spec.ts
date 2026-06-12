@@ -20,9 +20,9 @@ describe('OAuthLoginUseCase', () => {
     new Role('role-1', 'user', 'Default', true, []),
   ]);
 
-  // A valid, unexpired state bound to the google provider
+  // A valid, unexpired login state bound to the google provider (no user binding)
   const validGoogleState = () =>
-    new OAuthState('state-id', 'valid-state', 'google', new Date(Date.now() + 600000));
+    new OAuthState('state-id', 'valid-state', 'google', null, new Date(Date.now() + 600000));
 
   beforeEach(async () => {
     authDomainService = {
