@@ -22,7 +22,9 @@ export class TypeOrmOAuthStateRepositoryAdapter implements OAuthStateRepositoryP
     // Atomically read and delete so a state can only ever be redeemed once.
     return this.dataSource.transaction(async (manager) => {
       const repo = manager.getRepository(OAuthStateEntity);
-      const entity = await repo.findOne({ where: { state } });
+      // Take a row-level write lock so a concurrent consume() blocks until this
+      // transaction commits the delete — preventing a double-redeem race.
+      const entity = await repo.findOne({ where: { state }, lock: { mode: 'pessimistic_write' } });
       if (!entity) {
         return null;
       }
